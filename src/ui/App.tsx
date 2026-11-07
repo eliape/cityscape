@@ -35,10 +35,6 @@ export function App({ client }: { client: SimClient }) {
   useEffect(() => {
     const s = new MapScene(mapEl.current!);
     scene.current = s;
-    const dark = window.matchMedia('(prefers-color-scheme: dark)');
-    const applyTheme = () => s.setTheme(dark.matches);
-    applyTheme();
-    dark.addEventListener('change', applyTheme);
 
     const onSnapshot = (snap: Snapshot) => {
       s.setSnapshot(snap);
@@ -71,7 +67,6 @@ export function App({ client }: { client: SimClient }) {
     const onTerrain = (t: TerrainView) => s.setTerrain(t);
     client.connect(Comlink.proxy({ terrain: onTerrain, snapshot: onSnapshot, stats: onStats }));
     return () => {
-      dark.removeEventListener('change', applyTheme);
       s.dispose();
     };
   }, [client]);
