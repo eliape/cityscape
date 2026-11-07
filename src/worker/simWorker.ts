@@ -2,7 +2,8 @@
 import * as Comlink from 'comlink';
 import { Simulation } from '../sim/simulation';
 import { defaultParams, type ParamName, type Params } from '../sim/params';
-import { SNAPSHOT_FIELDS, type Snapshot, type Stats, type TerrainView } from '../sim/types';
+import type { MetroLineInput } from '../sim/metro';
+import { SNAPSHOT_FIELDS, type NetworkView, type Snapshot, type Stats, type TerrainView } from '../sim/types';
 
 export type Speed = 1 | 4 | 16;
 
@@ -10,6 +11,7 @@ export interface WorkerEvents {
   terrain(t: TerrainView): void;
   snapshot(s: Snapshot): void;
   stats(s: Stats): void;
+  network(n: NetworkView): void;
 }
 
 /** Snapshots go out at most this often (spec: ≤ 10 per second). */
@@ -31,6 +33,7 @@ class SimWorker {
   private lastSnapshot = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private snapshotPending = false;
+  private publishedSolve = -1;
 
   connect(events: WorkerEvents): void {
     this.events = events;
@@ -64,6 +67,24 @@ class SimWorker {
       this.sim.refresh();
       this.publish(true);
     }
+  }
+
+  /** Build a metro line and re-solve travel right away. Resolves to the line id, or an error message. */
+  addLine(line: MetroLineInput): { id: number } | { error: string } {
+    try {
+      const id = this.sim.addLine(line);
+      this.sim.refresh();
+      this.publish(true);
+      return { id };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  removeLine(id: number): void {
+    this.sim.removeLine(id);
+    this.sim.refresh();
+    this.publish(true);
   }
 
   getParams(): Params {
@@ -124,6 +145,10 @@ class SimWorker {
     const buffers = SNAPSHOT_FIELDS.map((k) => snap[k].buffer as ArrayBuffer);
     this.events.snapshot(Comlink.transfer(snap, buffers));
     this.events.stats(this.sim.stats());
+    if (this.sim.solves !== this.publishedSolve) {
+      this.publishedSolve = this.sim.solves;
+      this.events.network(this.sim.networkView());
+    }
   }
 }
 

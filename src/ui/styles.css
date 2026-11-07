@@ -404,3 +404,114 @@ kbd {
     gap: 12px;
   }
 }
+
+/* ── Build: metro tool ── */
+.build {
+  display: grid;
+  gap: 8px;
+}
+
+.btn.mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.mode-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--text);
+  background: var(--panel);
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tool-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.tool-card .hint,
+.tool-card p {
+  margin: 0;
+}
+
+.tool-steps {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tool-steps .on {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tool-steps .done {
+  color: var(--text);
+}
+
+.tool-readout {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.warn {
+  font-size: 12px;
+  color: #a5651b;
+}
+
+.error {
+  font-size: 12px;
+  color: #b3261e;
+  margin: 0;
+}
+
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.lines li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.line-badge {
+  font-weight: 700;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--panel);
+}
+
+.line-info {
+  flex: 1;
+  line-height: 1.35;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}

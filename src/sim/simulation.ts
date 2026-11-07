@@ -1,14 +1,15 @@
 import { CELL_KM2, CELL_M, CELLS, N, cellsToZones, idx, zonesToCells, ZONES } from './grid';
 import { createFields, gaussianBlur, type Fields } from './fields';
 import { accessibility, bidRents, createScratch, floorDemand, slowSubstep, type LandUseScratch } from './landuse';
-import { buildNetwork, type Network } from './network';
+import { ArcKind, buildNetwork, type Network } from './network';
+import { validateLine, type MetroLine, type MetroLineInput } from './metro';
 import { nucleate } from './nucleation';
 import { defaultParams, paramMeta, type ParamName, type Params } from './params';
 import { gaussian, mulberry32, type Rng } from './rng';
 import { generateTerrain, landRegions, waterDistance, type Terrain } from './terrain';
 import { computeTerrainEffects, createTerrainEffects, terrainGeometry, type TerrainEffects, type TerrainGeometry } from './terrainEffects';
 import { solveTravel, type TravelResult } from './travel';
-import type { Snapshot, Stats } from './types';
+import type { NetworkView, Snapshot, Stats } from './types';
 
 /** Correlation length of the amenity noise, m. */
 const AMENITY_SCALE_M = 600;
@@ -37,6 +38,11 @@ export class Simulation {
   travel!: TravelResult;
   settlements = 0;
   travelMs = 0;
+  /** Built metro lines. */
+  lines: MetroLine[] = [];
+  /** Counts fast-layer solves, so callers can tell when line loads changed. */
+  solves = 0;
+  private nextLineId = 1;
 
   private net!: Network;
   private rng!: Rng;
@@ -57,6 +63,8 @@ export class Simulation {
     this.seed = seed;
     this.month = 0;
     this.settlements = 0;
+    // A new map: lines drawn on the old one no longer fit.
+    this.lines = [];
     this.rng = mulberry32(seed);
     this.fields = createFields();
     const f = this.fields;
@@ -146,10 +154,29 @@ export class Simulation {
     this.fields.terrainAmenity.set(this.effects.amenity);
   }
 
+  /** Build a metro line and re-solve the fast layer. Throws with the reason when the line is invalid. */
+  addLine(input: MetroLineInput): number {
+    const line: MetroLine = { id: this.nextLineId++, path: [...input.path], stations: [...input.stations] };
+    const err = validateLine(line, this.terrain.water);
+    if (err) throw new Error(err);
+    this.lines.push(line);
+    this.networkDirty = true;
+    this.solveTravelNow();
+    return line.id;
+  }
+
+  removeLine(id: number): void {
+    const n = this.lines.length;
+    this.lines = this.lines.filter((l) => l.id !== id);
+    if (this.lines.length === n) return;
+    this.networkDirty = true;
+    this.solveTravelNow();
+  }
+
   /** Re-solve the fast layer now (after the network or a travel parameter changes). */
   solveTravelNow(): void {
     const t0 = performance.now();
-    if (this.networkDirty) this.net = buildNetwork(this.params);
+    if (this.networkDirty) this.net = buildNetwork(this.params, this.lines);
     this.networkDirty = false;
     const p = this.params;
     const zRho = cellsToZones(this.fields.rho);
@@ -160,6 +187,42 @@ export class Simulation {
     zonesToCells(this.travel.zoneCommute, this.commuteCells);
     this.travelDirty = false;
     this.travelMs = performance.now() - t0;
+    this.solves++;
+  }
+
+  /** Lines and their loads from the last solve. */
+  networkView(): NetworkView {
+    const { net, travel } = this;
+    const lines = this.lines.map((l) => ({
+      id: l.id,
+      path: [...l.path],
+      stations: [...l.stations],
+      load: Array.from({ length: l.stations.length - 1 }, () => [0, 0] as [number, number]),
+      capacity: this.params.metroCapacity,
+      boardings: 0,
+    }));
+    for (let a = 0; a < net.arcs; a++) {
+      const l = net.arcLine[a];
+      if (l >= 0) lines[l].load[net.arcSeg[a]][net.arcDir[a]] = travel.flow[a];
+    }
+    // Boardings: the line of a board or transfer arc is the line of the platform it leads to.
+    const lineOfNode = new Int32Array(net.nodes).fill(-1);
+    for (let a = 0; a < net.arcs; a++) if (net.arcLine[a] >= 0) lineOfNode[net.from[a]] = net.arcLine[a];
+    for (let a = 0; a < net.arcs; a++) {
+      const k = net.kind[a];
+      if (k !== ArcKind.Board && k !== ArcKind.Transfer) continue;
+      const l = lineOfNode[net.to[a]];
+      if (l >= 0) lines[l].boardings += travel.flow[a];
+    }
+    return { lines };
+  }
+
+  /** Peak-hour trips that board the metro from the street (transfers not counted twice). */
+  private metroRiders(): number {
+    const { net, travel } = this;
+    let s = 0;
+    for (let a = 0; a < net.arcs; a++) if (net.kind[a] === ArcKind.Board) s += travel.flow[a];
+    return s;
   }
 
   /** Advance one month. */
@@ -200,6 +263,10 @@ export class Simulation {
       nj += jobs[i];
       wl += rho[i] * this.lnAw[i];
     }
+    const riders = this.metroRiders();
+    const T = this.travel.trips;
+    let interzonal = 0;
+    for (let k = 0; k < T.length; k++) if (k % (ZONES + 1) !== 0) interzonal += T[k];
     return {
       month: this.month,
       population: pop,
@@ -208,6 +275,8 @@ export class Simulation {
       meanLnA: pop > 0 ? wl / pop : 0,
       settlements: this.settlements,
       travelMs: this.travelMs,
+      metroRiders: riders,
+      metroShare: interzonal > 0 ? riders / interzonal : 0,
     };
   }
 

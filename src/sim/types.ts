@@ -26,6 +26,23 @@ export interface Stats {
   meanLnA: number; // population-weighted ln A_w
   settlements: number; // nucleation events so far
   travelMs: number; // duration of the last fast-layer solve
+  metroRiders: number; // peak-hour trips that use the metro
+  metroShare: number; // share of peak-hour trips between zones that use the metro
+}
+
+/** Built metro lines with their peak-hour loads, sent after each fast-layer solve. */
+export interface NetworkView {
+  lines: LineView[];
+}
+
+export interface LineView {
+  id: number;
+  path: number[];
+  stations: number[]; // indices into path
+  /** Peak-hour passengers per segment (station k → k+1) in each direction: [along, against]. */
+  load: [number, number][];
+  capacity: number; // pax/h per direction
+  boardings: number; // peak-hour boardings at all stations
 }
 
 export const SNAPSHOT_FIELDS = ['floor', 'mix', 'rent', 'lnA', 'pressure', 'crowding', 'commute', 'buildCost', 'amenity'] as const;

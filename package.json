@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "headless": "vite-node scripts/headless.ts",
-    "terrain": "vite-node scripts/terrain-png.ts"
+    "terrain": "vite-node scripts/terrain-png.ts",
+    "metro-compare": "vite-node scripts/metro-compare.ts"
   },
   "dependencies": {
     "comlink": "^4.4.2",
