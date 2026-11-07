@@ -88,7 +88,7 @@ export const defaultParams: Params = {
   walkSpeed: 4.5,
   streetSpeed: 20,
   streetAccess: 4,
-  streetCapacity: 2500,
+  streetCapacity: 1000,
   bprAlpha: 0.6,
   bprPower: 4,
   peakShare: 0.12,
