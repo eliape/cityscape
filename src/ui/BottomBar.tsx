@@ -48,6 +48,14 @@ export function BottomBar({ stats, playing, speed, onTogglePlay, onSpeed }: Prop
         <span class="label">Mean commute</span>
         <span class="value">{stats ? `${formatNumber(stats.meanCommute, 1)} min` : '—'}</span>
       </div>
+      {stats && stats.metroRiders > 0 && (
+        <div class="readout">
+          <span class="label">Metro riders</span>
+          <span class="value">
+            {formatCount(stats.metroRiders)}/h · {formatNumber(stats.metroShare * 100, 1)} %
+          </span>
+        </div>
+      )}
     </footer>
   );
 }

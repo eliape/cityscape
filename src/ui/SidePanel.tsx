@@ -18,6 +18,7 @@ interface Props {
   tuning: boolean;
   tuningOpen: boolean;
   onTuning(open: boolean): void;
+  build: ComponentChildren;
 }
 
 function Section({ title, children }: { title: string; children: ComponentChildren }) {
@@ -54,6 +55,13 @@ const Icon = {
       <path d="M3 16h14M5 13l3-4 3 2 4-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
   ),
+  rail: (
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <path d="M3 15c3-8 11-8 14-10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      <circle cx="4.5" cy="12.5" r="2" fill="var(--panel)" stroke="currentColor" stroke-width="1.5" />
+      <circle cx="14" cy="6.5" r="2" fill="var(--panel)" stroke="currentColor" stroke-width="1.5" />
+    </svg>
+  ),
   chevron: (
     <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
       <path d="M12.5 5 7.5 10l5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -61,7 +69,7 @@ const Icon = {
   ),
 };
 
-/** View, simulation and stats. The Build section arrives with the line tool. */
+/** View, build, simulation and stats. */
 export function SidePanel(props: Props) {
   const { collapsed, onCollapse } = props;
   if (collapsed) {
@@ -72,6 +80,9 @@ export function SidePanel(props: Props) {
         </button>
         <button class="icon" onClick={() => onCollapse(false)} title="View">
           {Icon.layers}
+        </button>
+        <button class="icon" onClick={() => onCollapse(false)} title="Build">
+          {Icon.rail}
         </button>
         <button class="icon" onClick={() => onCollapse(false)} title="Stats">
           {Icon.chart}
@@ -106,6 +117,8 @@ export function SidePanel(props: Props) {
         </label>
       </Section>
 
+      <Section title="Build">{props.build}</Section>
+
       <Section title="Simulation">
         <div class="row">
           <label class="seed">
@@ -136,7 +149,7 @@ export function SidePanel(props: Props) {
       <p class="keys">
         <kbd>Space</kbd> play/pause · <kbd>1</kbd>
         <kbd>2</kbd>
-        <kbd>3</kbd> speed · <kbd>O</kbd> overlays
+        <kbd>3</kbd> speed · <kbd>O</kbd> overlays · <kbd>M</kbd> metro
       </p>
     </aside>
   );

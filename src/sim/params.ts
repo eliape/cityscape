@@ -17,6 +17,13 @@ export interface Params {
   bprPower: number;
   peakShare: number; // share of residents travelling in the peak hour
   fwIterations: number; // Frank–Wolfe iterations
+  // ── Transit: metro ──
+  metroSpeed: number; // average running speed between stations, km/h
+  metroCapacity: number; // pax/h per direction
+  metroHeadway: number; // minutes between trains; boarding waits half of it
+  metroAccess: number; // minutes from street to platform and back (stairs, escalators)
+  metroCatchment: number; // zones whose centre is within this distance of a station can walk to it, m
+  transferPenalty: number; // minutes added to each change between lines
   // ── Slow layer: households ──
   scaleNorm: number; // η: share of ln(city size) removed from ln A in bids (0 = plain logsum)
   thetaH: number; // weight of ln A_w in household bid rent
@@ -77,6 +84,13 @@ export const defaultParams: Params = {
   peakShare: 0.12,
   fwIterations: 10,
 
+  metroSpeed: 35,
+  metroCapacity: 30_000,
+  metroHeadway: 3,
+  metroAccess: 1,
+  metroCatchment: 800,
+  transferPenalty: 4,
+
   scaleNorm: 1,
   thetaH: 0.5,
   amenity: 0,
@@ -131,7 +145,7 @@ export const noWater: Partial<Params> = { landShare: 1, rivers: 0, lakeDepth: 1e
 export type ParamName = keyof Params;
 
 export interface ParamMeta {
-  group: 'Travel' | 'Households' | 'Firms' | 'Land market' | 'Nucleation' | 'Terrain' | 'Run';
+  group: 'Travel' | 'Transit' | 'Households' | 'Firms' | 'Land market' | 'Nucleation' | 'Terrain' | 'Run';
   min: number;
   max: number;
   step: number;
@@ -150,6 +164,13 @@ export const paramMeta: Record<ParamName, ParamMeta> = {
   bprPower: { group: 'Travel', min: 1, max: 8, step: 0.5, label: 'BPR k', travel: true },
   peakShare: { group: 'Travel', min: 0.01, max: 0.5, step: 0.01, label: 'Peak-hour share', travel: true },
   fwIterations: { group: 'Travel', min: 1, max: 40, step: 1, label: 'Frank–Wolfe iterations', travel: true },
+
+  metroSpeed: { group: 'Transit', min: 15, max: 60, step: 1, label: 'Metro speed (km/h)', travel: true },
+  metroCapacity: { group: 'Transit', min: 5000, max: 60000, step: 1000, label: 'Metro capacity (pax/h/dir)', travel: true },
+  metroHeadway: { group: 'Transit', min: 1, max: 20, step: 0.5, label: 'Metro headway (min)', travel: true },
+  metroAccess: { group: 'Transit', min: 0, max: 10, step: 0.5, label: 'Metro station access (min)', travel: true },
+  metroCatchment: { group: 'Transit', min: 400, max: 2000, step: 50, label: 'Station catchment (m)', travel: true },
+  transferPenalty: { group: 'Transit', min: 0, max: 20, step: 0.5, label: 'Transfer penalty (min)', travel: true },
 
   scaleNorm: { group: 'Households', min: 0, max: 1, step: 0.01, label: 'η scale normalisation' },
   thetaH: { group: 'Households', min: 0, max: 2, step: 0.01, label: 'θ_h access weight' },
