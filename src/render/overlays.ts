@@ -3,7 +3,7 @@ import { N } from '../sim/grid';
 import type { Snapshot, SnapshotField, TerrainView } from '../sim/types';
 import { TERRAIN_UNITS_PER_M } from './scale';
 
-export type OverlayId = 'none' | 'access' | 'rent' | 'pressure' | 'commute' | 'crowding';
+export type OverlayId = 'none' | 'access' | 'rent' | 'pressure' | 'commute' | 'crowding' | 'buildCost' | 'amenity';
 
 export interface OverlayDef {
   id: OverlayId;
@@ -14,6 +14,8 @@ export interface OverlayDef {
   center?: number;
   unit?: string;
   digits?: number;
+  /** Fixed colour range instead of the robust 2–98 % range of the data. */
+  range?: [number, number];
 }
 
 export const OVERLAYS: OverlayDef[] = [
@@ -23,6 +25,8 @@ export const OVERLAYS: OverlayDef[] = [
   { id: 'pressure', label: 'Growth pressure', hint: 'B − R: red = undervalued land', field: 'pressure', kind: 'diverging', center: 0, digits: 2 },
   { id: 'commute', label: 'Commute', hint: 'Mean generalised cost of trips from each cell', field: 'commute', kind: 'sequential', unit: 'min', digits: 0 },
   { id: 'crowding', label: 'Crowding', hint: 'Floor-space demand / supply: red = crowded', field: 'crowding', kind: 'diverging', center: 1, digits: 2 },
+  { id: 'buildCost', label: 'Build cost', hint: 'Construction cost vs flat dry land, from slope and wetland; top colour = 4× or unbuildable', field: 'buildCost', kind: 'sequential', unit: '×', digits: 1, range: [1, 4] },
+  { id: 'amenity', label: 'Amenity', hint: 'Household amenity: waterfront, views and seeded noise', field: 'amenity', kind: 'sequential', digits: 2 },
 ];
 
 export interface Legend {
@@ -188,7 +192,11 @@ export class OverlayLayer {
     const n = f.length;
     let lo: number;
     let hi: number;
-    if (def.kind === 'sequential') {
+    if (def.range) {
+      [lo, hi] = def.range;
+      const inv = 1 / (hi - lo);
+      for (let i = 0; i < n; i++) this.data[i] = Math.max(0, Math.min(255, Math.round((f[i] - lo) * inv * 255)));
+    } else if (def.kind === 'sequential') {
       this.sortBuf.set(f);
       this.sortBuf.sort();
       lo = this.sortBuf[Math.floor(n * 0.02)];

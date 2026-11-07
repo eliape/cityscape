@@ -6,6 +6,7 @@ import { nucleate } from './nucleation';
 import { defaultParams, paramMeta, type ParamName, type Params } from './params';
 import { gaussian, mulberry32, type Rng } from './rng';
 import { generateTerrain, landRegions, waterDistance, type Terrain } from './terrain';
+import { computeTerrainEffects, createTerrainEffects, terrainGeometry, type TerrainEffects, type TerrainGeometry } from './terrainEffects';
 import { solveTravel, type TravelResult } from './travel';
 import type { Snapshot, Stats } from './types';
 
@@ -29,6 +30,8 @@ export class Simulation {
   month = 0;
   fields: Fields = createFields();
   terrain!: Terrain;
+  geometry!: TerrainGeometry;
+  effects: TerrainEffects = createTerrainEffects();
   lnAw = new Float32Array(CELLS);
   lnAf = new Float32Array(CELLS);
   travel!: TravelResult;
@@ -59,6 +62,8 @@ export class Simulation {
     const f = this.fields;
     this.terrain = generateTerrain(seed, p);
     f.land.set(this.terrain.land);
+    this.geometry = terrainGeometry(this.terrain);
+    this.applyTerrainEffects();
 
     // Amenity: smooth seeded noise so the city is not perfectly symmetric.
     const noise = new Float32Array(CELLS);
@@ -92,7 +97,7 @@ export class Simulation {
     bidRents(f, p, this.lnAw, this.lnAf, this.scratch);
     for (let i = 0; i < CELLS; i++) {
       if (f.rho[i] + f.jobs[i] < 1) continue;
-      f.rent[i] = Math.max(p.rentFloor, Math.min(this.scratch.bidH[i], invertSupply(f.floor[i], p)));
+      f.rent[i] = Math.max(p.rentFloor, Math.min(this.scratch.bidH[i], invertSupply(f.floor[i], p, f.buildCost[i])));
     }
   }
 
@@ -131,6 +136,14 @@ export class Simulation {
       this.travelDirty = true;
       this.networkDirty = true;
     }
+    if (paramMeta[name].terrainEffect) this.applyTerrainEffects();
+  }
+
+  /** Recompute build cost and terrain amenity from the map and the current params. */
+  private applyTerrainEffects(): void {
+    computeTerrainEffects(this.geometry, this.terrain.water, this.params, this.effects);
+    this.fields.buildCost.set(this.effects.buildCost);
+    this.fields.terrainAmenity.set(this.effects.amenity);
   }
 
   /** Re-solve the fast layer now (after the network or a travel parameter changes). */
@@ -207,7 +220,9 @@ export class Simulation {
     const mix = new Float32Array(CELLS);
     const pressure = new Float32Array(CELLS);
     const crowding = new Float32Array(CELLS);
+    const amenity = new Float32Array(CELLS);
     for (let i = 0; i < CELLS; i++) {
+      amenity[i] = f.land[i] ? f.amenity[i] + f.terrainAmenity[i] : 0;
       const tot = rho[i] + jobs[i];
       mix[i] = tot > 1e-6 ? jobs[i] / tot : 0.5;
       pressure[i] = f.land[i] ? Math.max(s.bidH[i], s.bidF[i]) - rent[i] : 0;
@@ -223,14 +238,16 @@ export class Simulation {
       pressure,
       crowding,
       commute: this.commuteCells.slice(),
+      buildCost: f.buildCost.slice(),
+      amenity,
     };
   }
 }
 
-/** Rent at which S*(R) equals S (inverse of the supply curve), for consistent initial conditions. */
-export function invertSupply(S: number, p: Params): number {
+/** Rent at which S*(R; c) equals S (inverse of the supply curve), for consistent initial conditions. */
+export function invertSupply(S: number, p: Params, cost = 1): number {
   const s = Math.min(S / p.sMax, 0.999);
   if (s <= 0) return 0;
-  return p.rent0 * Math.pow(s / (1 - s), 1 / p.epsilon);
+  return cost * p.rent0 * Math.pow(s / (1 - s), 1 / p.epsilon);
 }
 

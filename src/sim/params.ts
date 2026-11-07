@@ -61,6 +61,16 @@ export interface Params {
   rivers: number; // number of rivers traced from the largest catchments
   riverWidth: number; // river width at the mouth, m
   lakeDepth: number; // depressions at least this deep become lakes, m
+  // ── Terrain effects (live) ──
+  slopeFree: number; // grade below which slope adds no build cost, %
+  slopeCost: number; // extra build cost per % grade above slopeFree, as a share of flat-land cost
+  slopeMax: number; // grade above which land is unbuildable, %
+  wetlandHeight: number; // land less than this high above nearby water is (partly) wetland, m
+  wetlandReach: number; // wetland only within this distance of water, m
+  wetlandCost: number; // extra build cost on full wetland, as a share of flat-land cost
+  waterfrontAmenity: number; // household amenity at the water's edge, bid-rent units
+  waterfrontRange: number; // decay length of the waterfront amenity, m
+  viewAmenity: number; // household amenity per 10 m of height above the surroundings, bid-rent units
   // ── Run ──
   substeps: number; // Euler substeps per month
   travelInterval: number; // months between fast-layer solves
@@ -121,6 +131,16 @@ export const defaultParams: Params = {
   riverWidth: 300,
   lakeDepth: 10,
 
+  slopeFree: 2,
+  slopeCost: 0.15,
+  slopeMax: 15,
+  wetlandHeight: 2,
+  wetlandReach: 500,
+  wetlandCost: 1,
+  waterfrontAmenity: 0.2,
+  waterfrontRange: 300,
+  viewAmenity: 0.05,
+
   substeps: 2,
   travelInterval: 12,
 };
@@ -128,16 +148,21 @@ export const defaultParams: Params = {
 /** Terrain settings that give a map with no water at all: the flat plain of the original model. */
 export const noWater: Partial<Params> = { landShare: 1, rivers: 0, lakeDepth: 1e9 };
 
+/** Terrain effect settings that switch every terrain term off: flat-land costs everywhere and no terrain amenity. */
+export const noTerrainEffects: Partial<Params> = { slopeCost: 0, slopeMax: 1e9, wetlandCost: 0, waterfrontAmenity: 0, viewAmenity: 0 };
+
 export type ParamName = keyof Params;
 
 export interface ParamMeta {
-  group: 'Travel' | 'Households' | 'Firms' | 'Land market' | 'Nucleation' | 'Terrain' | 'Run';
+  group: 'Travel' | 'Households' | 'Firms' | 'Land market' | 'Nucleation' | 'Terrain' | 'Terrain effects' | 'Run';
   min: number;
   max: number;
   step: number;
   label: string;
   /** Changing it invalidates the travel equilibrium. */
   travel?: boolean;
+  /** Changing it means recomputing the terrain effects (build cost, terrain amenity). */
+  terrainEffect?: boolean;
 }
 
 export const paramMeta: Record<ParamName, ParamMeta> = {
@@ -194,6 +219,16 @@ export const paramMeta: Record<ParamName, ParamMeta> = {
   rivers: { group: 'Terrain', min: 0, max: 8, step: 1, label: 'Rivers (on reset)' },
   riverWidth: { group: 'Terrain', min: 100, max: 800, step: 10, label: 'River width at mouth (m, on reset)' },
   lakeDepth: { group: 'Terrain', min: 1, max: 100, step: 1, label: 'Min. lake depth (m, on reset)' },
+
+  slopeFree: { group: 'Terrain effects', min: 0, max: 20, step: 0.5, label: 'Free grade (%)', terrainEffect: true },
+  slopeCost: { group: 'Terrain effects', min: 0, max: 1, step: 0.01, label: 'Slope cost (+share per % grade)', terrainEffect: true },
+  slopeMax: { group: 'Terrain effects', min: 1, max: 40, step: 0.5, label: 'Max buildable grade (%)', terrainEffect: true },
+  wetlandHeight: { group: 'Terrain effects', min: 0, max: 10, step: 0.1, label: 'Wetland height above water (m)', terrainEffect: true },
+  wetlandReach: { group: 'Terrain effects', min: 0, max: 2000, step: 50, label: 'Wetland reach from water (m)', terrainEffect: true },
+  wetlandCost: { group: 'Terrain effects', min: 0, max: 5, step: 0.05, label: 'Wetland cost (+share)', terrainEffect: true },
+  waterfrontAmenity: { group: 'Terrain effects', min: 0, max: 1, step: 0.01, label: 'Waterfront amenity', terrainEffect: true },
+  waterfrontRange: { group: 'Terrain effects', min: 0, max: 2000, step: 25, label: 'Waterfront range (m)', terrainEffect: true },
+  viewAmenity: { group: 'Terrain effects', min: 0, max: 0.5, step: 0.005, label: 'View amenity (per 10 m above surroundings)', terrainEffect: true },
 
   substeps: { group: 'Run', min: 1, max: 8, step: 1, label: 'Euler substeps' },
   travelInterval: { group: 'Run', min: 1, max: 60, step: 1, label: 'Months between travel solves' },
