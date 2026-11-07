@@ -8,6 +8,8 @@ export interface Snapshot {
   pressure: Float32Array; // B − R, with B = max(B_h, B_f)
   crowding: Float32Array; // floor-space demand / S
   commute: Float32Array; // mean generalised cost from each cell, minutes
+  buildCost: Float32Array; // construction cost relative to flat dry land (water: unbuildable)
+  amenity: Float32Array; // household amenity: seeded noise plus water and views
 }
 
 /** Static geography for the renderer, sent once per new map. */
@@ -43,5 +45,5 @@ export interface LineView {
   boardings: number; // peak-hour boardings at all stations
 }
 
-export const SNAPSHOT_FIELDS = ['floor', 'mix', 'rent', 'lnA', 'pressure', 'crowding', 'commute'] as const;
+export const SNAPSHOT_FIELDS = ['floor', 'mix', 'rent', 'lnA', 'pressure', 'crowding', 'commute', 'buildCost', 'amenity'] as const;
 export type SnapshotField = (typeof SNAPSHOT_FIELDS)[number];

@@ -7,7 +7,8 @@ import type { Rng } from './rng';
 export const EMPTY_THRESHOLD = CELL_M2 / 10_000;
 
 /**
- * Poisson settlement seeding: empty land seeds at rate ν(x) = ν₀ exp(μ (B(x) − R(x))) per km² per month.
+ * Poisson settlement seeding: empty land seeds at rate ν(x) = ν₀ exp(μ (B(x) − R(x))) / c(x) per km² per month,
+ * so land that is costlier to build on (build cost c) is settled less often.
  * Uses the household bid rent as B. Water never nucleates. Returns the number of new settlements.
  */
 export function nucleate(f: Fields, p: Params, bidH: Float32Array, rng: Rng, dt = 1): number {
@@ -15,7 +16,7 @@ export function nucleate(f: Fields, p: Params, bidH: Float32Array, rng: Rng, dt 
   let seeded = 0;
   for (let i = 0; i < CELLS; i++) {
     if (f.land[i] === 0 || f.rho[i] + f.jobs[i] >= EMPTY_THRESHOLD) continue;
-    const rate = p.nu0 * CELL_KM2 * Math.exp(Math.min(p.mu * (bidH[i] - f.rent[i]), 30));
+    const rate = (p.nu0 * CELL_KM2 * Math.exp(Math.min(p.mu * (bidH[i] - f.rent[i]), 30))) / f.buildCost[i];
     const prob = 1 - Math.exp(-rate * dt);
     if (rng() < prob) {
       f.rho[i] += p.seedResidents;
