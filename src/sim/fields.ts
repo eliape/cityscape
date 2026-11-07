@@ -8,6 +8,8 @@ export interface Fields {
   floor: Float32Array; // built floor space (1 = one cell of ground at FAR 1)
   amenity: Float32Array; // static amenity, seeded noise
   land: Float32Array; // 1 on land, 0 on water (see terrain.ts)
+  buildCost: Float32Array; // construction cost relative to flat dry land (see terrainEffects.ts)
+  terrainAmenity: Float32Array; // household amenity from water and views
 }
 
 export function createFields(): Fields {
@@ -18,6 +20,8 @@ export function createFields(): Fields {
     floor: new Float32Array(CELLS),
     amenity: new Float32Array(CELLS),
     land: new Float32Array(CELLS).fill(1),
+    buildCost: new Float32Array(CELLS).fill(1),
+    terrainAmenity: new Float32Array(CELLS),
   };
 }
 

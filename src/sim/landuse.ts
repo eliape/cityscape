@@ -91,7 +91,7 @@ export function bidRents(f: Fields, p: Params, lnAw: Float32Array, lnAf: Float32
   const [scaleW, scaleF] = scaleTerms(f, p);
   const labour = labourTerm(f, p);
   for (let i = 0; i < CELLS; i++) {
-    s.bidH[i] = p.thetaH * (lnAw[i] - scaleW) + p.amenity + f.amenity[i] - p.uBar;
+    s.bidH[i] = p.thetaH * (lnAw[i] - scaleW) + p.amenity + f.amenity[i] + f.terrainAmenity[i] - p.uBar;
     s.bidF[i] = p.agglomA * Math.pow(Math.max(s.blur[i] / CELL_HA, 0), p.agglomSigma) + p.thetaF * (lnAf[i] - scaleF) - p.wBar + labour;
   }
 }
@@ -104,9 +104,12 @@ export function floorDemand(rho: number, jobs: number, p: Params): number {
 /** Hectares per cell, to express densities per hectare independent of the cell size. */
 const CELL_HA = CELL_M2 / 10_000;
 
-/** Supply curve S*(R) = S_max R^ε / (R^ε + R₀^ε). */
-export function targetFloor(rent: number, p: Params): number {
-  const re = Math.pow(rent, p.epsilon);
+/**
+ * Supply curve S*(R) = S_max (R/c)^ε / ((R/c)^ε + R₀^ε), where c is the build cost relative to flat dry land:
+ * land that costs twice as much to build on needs twice the rent for the same floor space.
+ */
+export function targetFloor(rent: number, p: Params, cost = 1): number {
+  const re = Math.pow(rent / cost, p.epsilon);
   return (p.sMax * re) / (re + Math.pow(p.rent0, p.epsilon));
 }
 
@@ -117,7 +120,7 @@ const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi 
  *   ∂ρ = λ_h ρ (B_h − R) + D_h ∇²ρ
  *   ∂J = λ_f J (B_f − R) + D_f ∇²J
  *   ∂R = κ R (ρ/q_h + J/q_f − S) / S
- *   ∂S = γ (S*(R) − S)
+ *   ∂S = γ (S*(R; c) − S), with c the build cost
  * on land only: water cells hold no one and stay at the agricultural rent and undeveloped floor space.
  * Rent and floor space are updated after ρ and J; all fields are clamped at their floors.
  * Bid rents must be current in `s` (see bidRents). Nucleation sources are applied separately.
@@ -150,7 +153,7 @@ export function slowSubstep(f: Fields, p: Params, s: LandUseScratch, dt: number)
     const demand = floorDemand(rho[i], jobs[i], p);
     const g = clamp((p.kappa * (demand - S)) / S, -m, m);
     rent[i] = Math.max(p.rentFloor, rent[i] * (1 + dt * g));
-    const target = targetFloor(rent[i], p);
+    const target = targetFloor(rent[i], p, f.buildCost[i]);
     const rate = target > S ? p.gamma : p.demolition;
     floor[i] = Math.max(p.floorMin, S + dt * rate * (target - S));
   }

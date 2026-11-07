@@ -16,7 +16,7 @@ npm run terrain -- map.png 1 '{"landShare":0.35}'   # draw a seed's land and wat
 
 | Path | What |
 | --- | --- |
-| `src/sim/` | Pure TypeScript model, no DOM: `grid`, `fields`, `network`, `travel`, `landuse`, `nucleation`, `params`, `rng`, `simulation`, `terrain` |
+| `src/sim/` | Pure TypeScript model, no DOM: `grid`, `fields`, `network`, `travel`, `landuse`, `nucleation`, `params`, `rng`, `simulation`, `terrain`, `terrainEffects` |
 | `src/worker/simWorker.ts` | Owns the state, runs the tick loop (1× = one month per second), applies commands, streams snapshots (≤ 10/s) via Comlink |
 | `src/render/` | Three.js map: a separate building layer (`lots.ts`: one building per 50 m lot, grown from the model's fields by construction / redevelopment / demolition events), ground height mesh with water and GPU overlay colour ramps, camera |
 | `src/ui/` | Preact side panel, bottom bar, uPlot stats, lil-gui tuning |
@@ -41,7 +41,23 @@ group, applied on **New city**):
   **Min. lake depth** deep become lakes. The **Rivers** largest catchments are traced from their mouths
   upstream; width grows with the square root of the catchment up to **River width at mouth**.
 - Sea, lakes and rivers are one water mask. Water holds no residents or jobs, never nucleates, is never
-  built on, and nothing diffuses across a shore. Terrain has no other effect on the model yet.
+  built on, and nothing diffuses across a shore. Water is impassable (no bridges or ferries yet).
+
+### Terrain effects
+
+`src/sim/terrainEffects.ts`, sliders in the Terrain effects group, applied live. Overlays: **Build cost**
+and **Amenity**.
+
+- **Build cost** c ≥ 1, relative to flat dry land: `1 + slopeCost·max(0, grade − slopeFree) + wetlandCost·wetland`.
+  Grades above **Max buildable grade** are unbuildable. Grade is the 100 m cell's mean slope, which is
+  gentler than slopes at street scale, so the thresholds are lower than real-world building limits.
+- **Wetland** is land within **Wetland reach** of water and less than **Wetland height** above that
+  water's surface: 1 at the water line, falling linearly to 0.
+- c enters the supply curve as S*(R/c): costly land needs c times the rent for the same floor space.
+  Empty land also nucleates at a rate divided by c.
+- **Amenity** (households only): `waterfront·e^(−d/range) + view·max(0, height above surroundings)/10 m`,
+  with the surroundings a 1 km Gaussian of the surface.
+- `noTerrainEffects` in `params.ts` switches all of it off; the model shape tests use it.
 
 ## Model notes
 
