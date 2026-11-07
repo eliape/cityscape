@@ -15,3 +15,11 @@ export function formatCount(n: number): string {
 export function formatNumber(v: number, digits: number): string {
   return v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
+
+/** Money, e.g. "$24.7 bn". */
+export function formatMoney(v: number): string {
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(v >= 1e11 ? 0 : 1)} bn`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(v >= 1e8 ? 0 : 1)} M`;
+  if (v >= 1e3) return `$${Math.round(v / 1e3)} k`;
+  return `$${Math.round(v)}`;
+}

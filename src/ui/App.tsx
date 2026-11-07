@@ -57,16 +57,21 @@ export function App({ client }: { client: SimClient }) {
         Object.assign(h, emptyHistory(), { version: h.version + 1 });
       }
       const n = h.years.length - 1;
+      const perJob = st.jobs > 0 ? st.output / st.jobs : NaN;
       if (n >= 0 && Math.abs(h.years[n] - year) < 1e-9) {
         h.population[n] = st.population;
         h.commute[n] = st.meanCommute;
         h.lnA[n] = st.meanLnA;
+        h.output[n] = st.output;
+        h.outputPerJob[n] = perJob;
       } else {
         h.years.push(year);
         h.population.push(st.population);
         h.commute.push(st.meanCommute);
         h.lnA.push(st.meanLnA);
-        if (h.years.length > MAX_HISTORY) for (const k of ['years', 'population', 'commute', 'lnA'] as const) h[k].shift();
+        h.output.push(st.output);
+        h.outputPerJob.push(perJob);
+        if (h.years.length > MAX_HISTORY) for (const k of ['years', 'population', 'commute', 'lnA', 'output', 'outputPerJob'] as const) h[k].shift();
       }
       h.version++;
       setHistoryVersion(h.version);

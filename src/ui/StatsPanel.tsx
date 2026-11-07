@@ -1,21 +1,25 @@
 import { useState } from 'preact/hooks';
 import { Sparkline } from './Sparkline';
-import { formatCount, formatNumber } from './format';
+import { formatCount, formatMoney, formatNumber } from './format';
 
 export interface History {
   years: number[];
   population: number[];
   commute: number[];
   lnA: number[];
+  output: number[];
+  outputPerJob: number[];
   version: number;
 }
 
 export function emptyHistory(): History {
-  return { years: [], population: [], commute: [], lnA: [], version: 0 };
+  return { years: [], population: [], commute: [], lnA: [], output: [], outputPerJob: [], version: 0 };
 }
 
 const SERIES = [
   { key: 'population', label: 'Population', color: '#d9822b', fmt: formatCount },
+  { key: 'output', label: 'Output per year', color: '#8a5cc2', fmt: formatMoney },
+  { key: 'outputPerJob', label: 'Output per job', color: '#b0476b', fmt: formatMoney },
   { key: 'commute', label: 'Mean commute (min)', color: '#3b82c4', fmt: (v: number) => formatNumber(v, 1) },
   { key: 'lnA', label: 'Mean ln A (welfare)', color: '#3a9e6f', fmt: (v: number) => formatNumber(v, 2) },
 ] as const;

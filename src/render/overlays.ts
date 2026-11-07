@@ -3,7 +3,7 @@ import { N } from '../sim/grid';
 import type { Snapshot, SnapshotField, TerrainView } from '../sim/types';
 import { TERRAIN_UNITS_PER_M } from './scale';
 
-export type OverlayId = 'none' | 'access' | 'rent' | 'pressure' | 'commute' | 'crowding' | 'buildCost' | 'amenity';
+export type OverlayId = 'none' | 'access' | 'rent' | 'pressure' | 'commute' | 'crowding' | 'buildCost' | 'amenity' | 'output';
 
 export interface OverlayDef {
   id: OverlayId;
@@ -23,6 +23,7 @@ export const OVERLAYS: OverlayDef[] = [
   { id: 'access', label: 'Accessibility', hint: 'ln A_w: jobs within reach', field: 'lnA', kind: 'sequential', digits: 1 },
   { id: 'rent', label: 'Rent', hint: 'Rent per unit of floor space', field: 'rent', kind: 'sequential', digits: 2 },
   { id: 'pressure', label: 'Growth pressure', hint: 'B − R: red = undervalued land', field: 'pressure', kind: 'diverging', center: 0, digits: 2 },
+  { id: 'output', label: 'Output', hint: 'Economic output per km² per year: jobs × output per job, which rises with job density', field: 'output', kind: 'sequential', unit: '$M/km²', digits: 0 },
   { id: 'commute', label: 'Commute', hint: 'Mean generalised cost of trips from each cell', field: 'commute', kind: 'sequential', unit: 'min', digits: 0 },
   { id: 'crowding', label: 'Crowding', hint: 'Floor-space demand / supply: red = crowded', field: 'crowding', kind: 'diverging', center: 1, digits: 2 },
   { id: 'buildCost', label: 'Build cost', hint: 'Construction cost vs flat dry land, from slope and wetland; top colour = 4× or unbuildable', field: 'buildCost', kind: 'sequential', unit: '×', digits: 1, range: [1, 4] },

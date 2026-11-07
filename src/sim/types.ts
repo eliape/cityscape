@@ -10,6 +10,7 @@ export interface Snapshot {
   commute: Float32Array; // mean generalised cost from each cell, minutes
   buildCost: Float32Array; // construction cost relative to flat dry land (water: unbuildable)
   amenity: Float32Array; // household amenity: seeded noise plus water and views
+  output: Float32Array; // economic output density, $M per km² per year
 }
 
 /** Static geography for the renderer, sent once per new map. */
@@ -24,6 +25,7 @@ export interface Stats {
   jobs: number;
   meanCommute: number; // minutes, trip-weighted
   meanLnA: number; // population-weighted ln A_w
+  output: number; // economic output of all jobs, $ per year (see output.ts)
   settlements: number; // nucleation events so far
   travelMs: number; // duration of the last fast-layer solve
   metroRiders: number; // peak-hour trips that use the metro
@@ -45,5 +47,5 @@ export interface LineView {
   boardings: number; // peak-hour boardings at all stations
 }
 
-export const SNAPSHOT_FIELDS = ['floor', 'mix', 'rent', 'lnA', 'pressure', 'crowding', 'commute', 'buildCost', 'amenity'] as const;
+export const SNAPSHOT_FIELDS = ['floor', 'mix', 'rent', 'lnA', 'pressure', 'crowding', 'commute', 'buildCost', 'amenity', 'output'] as const;
 export type SnapshotField = (typeof SNAPSHOT_FIELDS)[number];

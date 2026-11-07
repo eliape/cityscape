@@ -11,7 +11,7 @@ const overrides = JSON.parse(process.argv[4] ?? '{}');
 const sim = new Simulation(seed, overrides);
 
 const fmt = (v: number, d = 1) => v.toFixed(d).padStart(8);
-console.log('year      pop     jobs  commute   meanlnA   maxS  maxR  settl  travelMs  cells>0.5S');
+console.log('year      pop     jobs  commute   meanlnA   maxS  maxR  settl  travelMs  cells>0.5S  output$bn  $k/job');
 for (let y = 0; y <= years; y++) {
   if (y > 0) sim.run(12);
   const s = sim.stats();
@@ -21,7 +21,7 @@ for (let y = 0; y <= years; y++) {
     maxR = Math.max(maxR, sim.fields.rent[i]);
     if (sim.fields.floor[i] > 0.5) built++;
   }
-  console.log(`${String(y).padStart(4)} ${fmt(s.population, 0)} ${fmt(s.jobs, 0)} ${fmt(s.meanCommute)} ${fmt(s.meanLnA, 2)} ${fmt(maxS, 2)} ${fmt(maxR, 2)} ${fmt(s.settlements, 0)} ${fmt(s.travelMs, 0)} ${fmt(built, 0)}`);
+  console.log(`${String(y).padStart(4)} ${fmt(s.population, 0)} ${fmt(s.jobs, 0)} ${fmt(s.meanCommute)} ${fmt(s.meanLnA, 2)} ${fmt(maxS, 2)} ${fmt(maxR, 2)} ${fmt(s.settlements, 0)} ${fmt(s.travelMs, 0)} ${fmt(built, 0)} ${fmt(s.output / 1e9, 2)} ${fmt(s.jobs > 0 ? s.output / s.jobs / 1e3 : 0)}`);
 }
 
 // Find the centre of mass of jobs and print a radial rent / density profile.

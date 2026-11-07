@@ -92,8 +92,13 @@ export function bidRents(f: Fields, p: Params, lnAw: Float32Array, lnAf: Float32
   const labour = labourTerm(f, p);
   for (let i = 0; i < CELLS; i++) {
     s.bidH[i] = p.thetaH * (lnAw[i] - scaleW) + p.amenity + f.amenity[i] + f.terrainAmenity[i] - p.uBar;
-    s.bidF[i] = p.agglomA * Math.pow(Math.max(s.blur[i] / CELL_HA, 0), p.agglomSigma) + p.thetaF * (lnAf[i] - scaleF) - p.wBar + labour;
+    s.bidF[i] = agglomeration(s.blur[i], p) + p.thetaF * (lnAf[i] - scaleF) - p.wBar + labour;
   }
+}
+
+/** Agglomeration term a (G_ℓ * J)^σ of the firm bid, from the smoothed jobs per cell. */
+export function agglomeration(blurredJobs: number, p: Params): number {
+  return p.agglomA * Math.pow(Math.max(blurredJobs / CELL_HA, 0), p.agglomSigma);
 }
 
 /** Floor space a cell's residents and jobs need, as FAR. */
