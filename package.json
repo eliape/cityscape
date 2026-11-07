@@ -1,0 +1,29 @@
+{
+  "name": "cityscape",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "headless": "vite-node scripts/headless.ts"
+  },
+  "dependencies": {
+    "comlink": "^4.4.2",
+    "lil-gui": "^0.21.0",
+    "preact": "^11.2.0",
+    "three": "^0.187.0",
+    "uplot": "^1.6.32"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/three": "^0.187.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vite-node": "^6.0.0",
+    "vitest": "^5.1.0"
+  }
+}
