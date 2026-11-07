@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MapControls } from 'three/examples/jsm/controls/MapControls.js';
 import { N } from '../sim/grid';
-import type { Snapshot } from '../sim/types';
+import type { Snapshot, TerrainView } from '../sim/types';
 import { BuildingLayer } from './buildings';
 import { OverlayLayer, OVERLAYS, type Legend, type OverlayId } from './overlays';
 
@@ -68,7 +68,17 @@ export class MapScene {
 
   setTheme(dark: boolean): void {
     this.scene.background = new THREE.Color(dark ? '#16181c' : '#eef0f2');
-    this.overlay.setBaseColor(new THREE.Color(dark ? '#2a2d31' : '#d9d4c7'));
+    this.overlay.setColors(
+      new THREE.Color(dark ? '#2b322b' : '#cfd5b5'),
+      new THREE.Color(dark ? '#3d3f3a' : '#ece6d6'),
+      new THREE.Color(dark ? '#1c3446' : '#9cc3de'),
+    );
+  }
+
+  /** A new map: lift the ground and seat the buildings on it. */
+  setTerrain(t: TerrainView): void {
+    this.overlay.setTerrain(t);
+    this.buildings.setTerrain(t);
   }
 
   setSnapshot(snap: Snapshot): void {

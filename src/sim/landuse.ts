@@ -118,27 +118,34 @@ const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi 
  *   ∂J = λ_f J (B_f − R) + D_f ∇²J
  *   ∂R = κ R (ρ/q_h + J/q_f − S) / S
  *   ∂S = γ (S*(R) − S)
+ * on land only: water cells hold no one and stay at the agricultural rent and undeveloped floor space.
  * Rent and floor space are updated after ρ and J; all fields are clamped at their floors.
  * Bid rents must be current in `s` (see bidRents). Nucleation sources are applied separately.
  */
 export function slowSubstep(f: Fields, p: Params, s: LandUseScratch, dt: number): void {
-  const { rho, jobs, rent, floor } = f;
+  const { rho, jobs, rent, floor, land } = f;
   const m = p.maxRate;
   // Diffusion coefficients are in m²/month; the Laplacian is in cell units.
   const dH = p.diffH / CELL_M2;
   const dF = p.diffF / CELL_M2;
 
-  laplacian(rho, s.lap);
+  laplacian(rho, s.lap, land);
   for (let i = 0; i < CELLS; i++) {
     const g = clamp(p.lambdaH * (s.bidH[i] - rent[i]), -m, m);
-    rho[i] = Math.max(0, rho[i] + dt * (g * rho[i] + dH * s.lap[i]));
+    rho[i] = land[i] * Math.max(0, rho[i] + dt * (g * rho[i] + dH * s.lap[i]));
   }
-  laplacian(jobs, s.lap);
+  laplacian(jobs, s.lap, land);
   for (let i = 0; i < CELLS; i++) {
     const g = clamp(p.lambdaF * (s.bidF[i] - rent[i]), -m, m);
-    jobs[i] = Math.max(0, jobs[i] + dt * (g * jobs[i] + dF * s.lap[i]));
+    jobs[i] = land[i] * Math.max(0, jobs[i] + dt * (g * jobs[i] + dF * s.lap[i]));
   }
   for (let i = 0; i < CELLS; i++) {
+    // Water is never built on.
+    if (land[i] === 0) {
+      rent[i] = p.rentFloor;
+      floor[i] = p.floorMin;
+      continue;
+    }
     const S = floor[i];
     const demand = floorDemand(rho[i], jobs[i], p);
     const g = clamp((p.kappa * (demand - S)) / S, -m, m);

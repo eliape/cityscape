@@ -5,6 +5,7 @@ import { buildNetwork, type Network } from './network';
 import { nucleate } from './nucleation';
 import { defaultParams, paramMeta, type ParamName, type Params } from './params';
 import { gaussian, mulberry32, type Rng } from './rng';
+import { generateTerrain, landRegions, waterDistance, type Terrain } from './terrain';
 import { solveTravel, type TravelResult } from './travel';
 import type { Snapshot, Stats } from './types';
 
@@ -15,6 +16,8 @@ const VILLAGE_RADIUS_M = 250;
 const VILLAGE_RESIDENTS_KM2 = 25_000;
 const VILLAGE_JOBS_KM2 = 16_000;
 const VILLAGE_OFFSET_M = 800;
+/** The village centre keeps at least this much land around it where it can, m. */
+const VILLAGE_SHORE_M = 400;
 
 /**
  * The whole model: owns all state and advances it one month at a time.
@@ -25,6 +28,7 @@ export class Simulation {
   seed: number;
   month = 0;
   fields: Fields = createFields();
+  terrain!: Terrain;
   lnAw = new Float32Array(CELLS);
   lnAf = new Float32Array(CELLS);
   travel!: TravelResult;
@@ -53,6 +57,8 @@ export class Simulation {
     this.rng = mulberry32(seed);
     this.fields = createFields();
     const f = this.fields;
+    this.terrain = generateTerrain(seed, p);
+    f.land.set(this.terrain.land);
 
     // Amenity: smooth seeded noise so the city is not perfectly symmetric.
     const noise = new Float32Array(CELLS);
@@ -63,16 +69,15 @@ export class Simulation {
     sd = Math.sqrt(sd / CELLS) || 1;
     for (let i = 0; i < CELLS; i++) f.amenity[i] *= p.amenityNoise / sd;
 
-    // Seed village near the centre.
+    // Seed village near the centre, on land.
     const off = VILLAGE_OFFSET_M / CELL_M;
-    const cx = N / 2 + (this.rng() - 0.5) * off;
-    const cy = N / 2 + (this.rng() - 0.5) * off;
+    const [cx, cy] = this.villageSite(N / 2 + (this.rng() - 0.5) * off, N / 2 + (this.rng() - 0.5) * off);
     const rad = VILLAGE_RADIUS_M / CELL_M;
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
         const i = idx(x, y);
         const r2 = ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) / (rad * rad);
-        const w = r2 < 9 ? Math.exp(-r2) : 0;
+        const w = r2 < 9 ? f.land[i] * Math.exp(-r2) : 0;
         f.rho[i] = VILLAGE_RESIDENTS_KM2 * CELL_KM2 * w;
         f.jobs[i] = VILLAGE_JOBS_KM2 * CELL_KM2 * w;
         f.floor[i] = Math.max(p.floorMin, floorDemand(f.rho[i], f.jobs[i], p));
@@ -89,6 +94,35 @@ export class Simulation {
       if (f.rho[i] + f.jobs[i] < 1) continue;
       f.rent[i] = Math.max(p.rentFloor, Math.min(this.scratch.bidH[i], invertSupply(f.floor[i], p)));
     }
+  }
+
+  /**
+   * The land cell nearest to (x, y) on the largest landmass, preferring cells at least VILLAGE_SHORE_M
+   * from water. Returns cell-centre coordinates; (x, y) itself when there is no water at all.
+   */
+  private villageSite(x: number, y: number): [number, number] {
+    const { water } = this.terrain;
+    const { label, sizes } = landRegions(water);
+    if (sizes.length === 0) return [x, y];
+    const main = sizes.indexOf(Math.max(...sizes));
+    const dist = waterDistance(water);
+    const shore = Math.round(VILLAGE_SHORE_M / CELL_M);
+    let best = -1;
+    let bestD = Infinity;
+    let bestInland = false;
+    for (let i = 0; i < CELLS; i++) {
+      if (label[i] !== main) continue;
+      const inland = dist[i] >= shore;
+      const d = (i % N + 0.5 - x) ** 2 + (((i / N) | 0) + 0.5 - y) ** 2;
+      if ((inland && !bestInland) || (inland === bestInland && d < bestD)) {
+        best = i;
+        bestD = d;
+        bestInland = inland;
+      }
+    }
+    const here = idx(Math.floor(x), Math.floor(y));
+    if (label[here] === main && dist[here] >= shore) return [x, y];
+    return [(best % N) + 0.5, ((best / N) | 0) + 0.5];
   }
 
   setParam(name: ParamName, value: number): void {
@@ -167,7 +201,8 @@ export class Simulation {
   /** Fresh arrays, safe to transfer to another thread. */
   snapshot(): Snapshot {
     const p = this.params;
-    const { rho, jobs, rent, floor } = this.fields;
+    const f = this.fields;
+    const { rho, jobs, rent, floor } = f;
     const s = this.scratch;
     const mix = new Float32Array(CELLS);
     const pressure = new Float32Array(CELLS);
@@ -175,7 +210,7 @@ export class Simulation {
     for (let i = 0; i < CELLS; i++) {
       const tot = rho[i] + jobs[i];
       mix[i] = tot > 1e-6 ? jobs[i] / tot : 0.5;
-      pressure[i] = Math.max(s.bidH[i], s.bidF[i]) - rent[i];
+      pressure[i] = f.land[i] ? Math.max(s.bidH[i], s.bidF[i]) - rent[i] : 0;
       // Undeveloped, empty land is neither crowded nor under-used: show it as balanced.
       crowding[i] = tot < 1 && floor[i] <= p.floorMin * 1.01 ? 1 : floorDemand(rho[i], jobs[i], p) / floor[i];
     }

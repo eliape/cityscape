@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "headless": "vite-node scripts/headless.ts"
+    "headless": "vite-node scripts/headless.ts",
+    "terrain": "vite-node scripts/terrain-png.ts"
   },
   "dependencies": {
     "comlink": "^4.4.2",

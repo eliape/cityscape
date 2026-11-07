@@ -10,6 +10,12 @@ export interface Snapshot {
   commute: Float32Array; // mean generalised cost from each cell, minutes
 }
 
+/** Static geography for the renderer, sent once per new map. */
+export interface TerrainView {
+  surface: Float32Array; // m above sea level: water surface on water, ground elsewhere
+  water: Uint8Array; // 1 on water
+}
+
 export interface Stats {
   month: number;
   population: number;

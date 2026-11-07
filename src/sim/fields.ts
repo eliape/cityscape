@@ -7,6 +7,7 @@ export interface Fields {
   rent: Float32Array; // rent index per unit floor space
   floor: Float32Array; // built floor space (1 = one cell of ground at FAR 1)
   amenity: Float32Array; // static amenity, seeded noise
+  land: Float32Array; // 1 on land, 0 on water (see terrain.ts)
 }
 
 export function createFields(): Fields {
@@ -16,23 +17,34 @@ export function createFields(): Fields {
     rent: new Float32Array(CELLS),
     floor: new Float32Array(CELLS),
     amenity: new Float32Array(CELLS),
+    land: new Float32Array(CELLS).fill(1),
   };
 }
 
 /**
  * 5-point Laplacian with no-flux (Neumann) boundaries, in cell units.
- * Mirrored edges mean a diffusion step conserves the field's sum.
+ * Mirrored edges mean a diffusion step conserves the field's sum. With a mask, cells where the mask is 0
+ * (water) are treated like the map edge: nothing diffuses into or out of them.
  */
-export function laplacian(f: Float32Array, out: Float32Array): Float32Array {
+export function laplacian(f: Float32Array, out: Float32Array, mask?: Float32Array): Float32Array {
   for (let y = 0; y < N; y++) {
     const row = y * N;
     const up = (y > 0 ? y - 1 : y) * N;
     const dn = (y < N - 1 ? y + 1 : y) * N;
     for (let x = 0; x < N; x++) {
-      const c = f[row + x];
-      const l = f[row + (x > 0 ? x - 1 : x)];
-      const r = f[row + (x < N - 1 ? x + 1 : x)];
-      out[row + x] = l + r + f[up + x] + f[dn + x] - 4 * c;
+      const i = row + x;
+      const c = f[i];
+      const li = row + (x > 0 ? x - 1 : x);
+      const ri = row + (x < N - 1 ? x + 1 : x);
+      const ui = up + x;
+      const di = dn + x;
+      if (!mask) {
+        out[i] = f[li] + f[ri] + f[ui] + f[di] - 4 * c;
+      } else if (mask[i] === 0) {
+        out[i] = 0;
+      } else {
+        out[i] = (mask[li] ? f[li] - c : 0) + (mask[ri] ? f[ri] - c : 0) + (mask[ui] ? f[ui] - c : 0) + (mask[di] ? f[di] - c : 0);
+      }
     }
   }
   return out;

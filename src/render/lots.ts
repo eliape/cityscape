@@ -44,6 +44,7 @@ export class LotModel {
   readonly shade = new Float32Array(LOTS);
 
   private lastMonth = -1;
+  private water: Uint8Array | null = null;
   private rng: Rng;
 
   constructor(seed = 0x5eed) {
@@ -76,6 +77,7 @@ export class LotModel {
    * snapshot, every lot jumps straight to its target.
    */
   update(month: number, floor: Float32Array, mix: Float32Array): void {
+    const water = this.water;
     const dm = month - this.lastMonth;
     const instant = this.lastMonth < 0 || dm < 0;
     this.lastMonth = month;
@@ -101,7 +103,9 @@ export class LotModel {
         const far = bilerp(floor, a, tx, ty);
         const i = ly * LN + lx;
         const cur = this.floors[i];
-        const target = this.targetFloors(i, far, cur > 0 && !instant);
+        // A lot lies inside one cell; nothing is built where that cell is water.
+        const wet = water !== null && water[(((ly * scale) | 0) * N) + ((lx * scale) | 0)] === 1;
+        const target = wet ? 0 : this.targetFloors(i, far, cur > 0 && !instant);
 
         let next = cur;
         if (instant) next = target;
@@ -119,6 +123,15 @@ export class LotModel {
         }
       }
     }
+  }
+
+  /**
+   * A new map: lots on water stay empty, and the next update jumps every lot straight to its target
+   * (a reset can land on the same month as before).
+   */
+  setWater(water: Uint8Array): void {
+    this.water = water;
+    this.lastMonth = -1;
   }
 
   /** Number of standing buildings. */
