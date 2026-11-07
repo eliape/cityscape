@@ -5,8 +5,8 @@ See the v0.1 specification for the model. This repository currently holds the **
 and its controls**; transit line building comes next.
 
 ```sh
-npm install
-npm run dev        # http://localhost:5173 (dev builds include the parameter tuning panel)
+make install      # npm install
+make dev           # http://localhost:5173 (dev builds include the parameter tuning panel)
 npm test           # Vitest: numerics, solver convergence, model behaviour
 npm run headless -- 40 1 '{"beta":0.12}'   # run 40 years with seed 1 and overrides, print a summary
 ```
