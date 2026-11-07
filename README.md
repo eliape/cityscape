@@ -17,7 +17,7 @@ npm run headless -- 40 1 '{"beta":0.12}'   # run 40 years with seed 1 and overri
 | --- | --- |
 | `src/sim/` | Pure TypeScript model, no DOM: `grid`, `fields`, `network`, `travel`, `landuse`, `nucleation`, `params`, `rng`, `simulation` |
 | `src/worker/simWorker.ts` | Owns the state, runs the tick loop (1× = one month per second), applies commands, streams snapshots (≤ 10/s) via Comlink |
-| `src/render/` | Three.js map: instanced buildings, ground overlay texture with GPU colour ramps, camera |
+| `src/render/` | Three.js map: a separate building layer (`lots.ts`: one building per 50 m lot, grown from the model's fields by construction / redevelopment / demolition events), ground overlay texture with GPU colour ramps, camera |
 | `src/ui/` | Preact side panel, bottom bar, uPlot stats, lil-gui tuning |
 
 ## Controls
@@ -26,6 +26,8 @@ Space play/pause · 1 / 2 / 3 speed 1×, 4×, 16× · O cycle overlays. The tuni
 parameter) shows in dev builds, or in any build with `?tune` in the URL.
 
 ## Model notes
+
+- All parameters are in physical units (m, m², per km², m²/month), so the cell size in `grid.ts` can change without retuning.
 
 - Fast layer: walking + street, solved as a combined distribution/assignment problem (Evans) by
   Frank–Wolfe with a Newton line search, on 256 zones. Re-solved yearly or when a travel parameter changes.
