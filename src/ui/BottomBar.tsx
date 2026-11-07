@@ -1,6 +1,6 @@
 import type { Stats } from '../sim/types';
 import type { Speed } from '../worker/simWorker';
-import { formatCount, formatDate, formatNumber } from './format';
+import { formatCount, formatDate, formatMoney, formatNumber } from './format';
 
 interface Props {
   stats: Stats | null;
@@ -43,6 +43,10 @@ export function BottomBar({ stats, playing, speed, onTogglePlay, onSpeed }: Prop
       <div class="readout">
         <span class="label">Jobs</span>
         <span class="value">{stats ? formatCount(stats.jobs) : '—'}</span>
+      </div>
+      <div class="readout">
+        <span class="label">Output</span>
+        <span class="value">{stats ? `${formatMoney(stats.output)}/yr` : '—'}</span>
       </div>
       <div class="readout">
         <span class="label">Mean commute</span>

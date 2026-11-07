@@ -3,6 +3,7 @@ import { createFields, gaussianBlur, type Fields } from './fields';
 import { accessibility, bidRents, createScratch, floorDemand, slowSubstep, type LandUseScratch } from './landuse';
 import { buildNetwork, type Network } from './network';
 import { nucleate } from './nucleation';
+import { cityOutput } from './output';
 import { defaultParams, paramMeta, type ParamName, type Params } from './params';
 import { gaussian, mulberry32, type Rng } from './rng';
 import { generateTerrain, landRegions, waterDistance, type Terrain } from './terrain';
@@ -206,6 +207,7 @@ export class Simulation {
       jobs: nj,
       meanCommute: this.travel.meanCommute,
       meanLnA: pop > 0 ? wl / pop : 0,
+      output: cityOutput(this.fields, this.scratch.blur, this.params),
       settlements: this.settlements,
       travelMs: this.travelMs,
     };
@@ -221,12 +223,15 @@ export class Simulation {
     const pressure = new Float32Array(CELLS);
     const crowding = new Float32Array(CELLS);
     const amenity = new Float32Array(CELLS);
+    const output = new Float32Array(CELLS);
+    cityOutput(f, s.blur, p, output);
     for (let i = 0; i < CELLS; i++) {
       amenity[i] = f.land[i] ? f.amenity[i] + f.terrainAmenity[i] : 0;
       const tot = rho[i] + jobs[i];
       mix[i] = tot > 1e-6 ? jobs[i] / tot : 0.5;
       pressure[i] = f.land[i] ? Math.max(s.bidH[i], s.bidF[i]) - rent[i] : 0;
       // Undeveloped, empty land is neither crowded nor under-used: show it as balanced.
+      output[i] /= CELL_KM2 * 1e6;
       crowding[i] = tot < 1 && floor[i] <= p.floorMin * 1.01 ? 1 : floorDemand(rho[i], jobs[i], p) / floor[i];
     }
     return {
@@ -240,6 +245,7 @@ export class Simulation {
       commute: this.commuteCells.slice(),
       buildCost: f.buildCost.slice(),
       amenity,
+      output,
     };
   }
 }

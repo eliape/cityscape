@@ -37,6 +37,7 @@ export interface Params {
   lambdaF: number;
   diffF: number; // firm diffusion, m²/month
   floorPerJob: number; // m² of floor space per job
+  outputPerJob: number; // output of one job with no agglomeration, k$ per year (reporting only)
   // ── Land market ──
   kappa: number; // rent adjustment speed, 1/month
   gamma: number; // construction speed, 1/month
@@ -106,6 +107,7 @@ export const defaultParams: Params = {
   lambdaF: 0.08,
   diffF: 400,
   floorPerJob: 31.25,
+  outputPerJob: 50,
 
   kappa: 0.02,
   gamma: 0.03,
@@ -195,6 +197,7 @@ export const paramMeta: Record<ParamName, ParamMeta> = {
   lambdaF: { group: 'Firms', min: 0, max: 0.5, step: 0.005, label: 'λ_f relocation speed' },
   diffF: { group: 'Firms', min: 0, max: 2400, step: 10, label: 'D_f diffusion (m²/month)' },
   floorPerJob: { group: 'Firms', min: 10, max: 200, step: 0.5, label: 'Floor per job (m²)' },
+  outputPerJob: { group: 'Firms', min: 10, max: 200, step: 1, label: 'Base output per job (k$/yr)' },
 
   kappa: { group: 'Land market', min: 0, max: 0.3, step: 0.005, label: 'κ rent speed' },
   gamma: { group: 'Land market', min: 0, max: 0.3, step: 0.005, label: 'γ construction speed' },
