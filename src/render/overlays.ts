@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { N } from '../sim/grid';
-import type { Snapshot, SnapshotField } from '../sim/types';
+import type { Snapshot, SnapshotField, TerrainView } from '../sim/types';
+import { TERRAIN_UNITS_PER_M } from './scale';
 
 export type OverlayId = 'none' | 'access' | 'rent' | 'pressure' | 'commute' | 'crowding';
 
@@ -32,20 +33,33 @@ export interface Legend {
   digits: number;
 }
 
+// Vertices sit at cell centres, so map the plane's 0..1 uv onto texel centres.
 const vertex = /* glsl */ `
+uniform float uHeightScale;
 varying vec2 vUv;
+varying vec3 vNormal;
+varying float vHeight;
 void main() {
-  vUv = vec2(uv.x, 1.0 - uv.y);
+  vec2 t = vec2(uv.x, 1.0 - uv.y);
+  vUv = (0.5 + t * ${(N - 1).toFixed(1)}) / ${N.toFixed(1)};
+  vNormal = normal;
+  vHeight = position.y * uHeightScale;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 
 // Sequential: a perceptual blue-green-yellow ramp. Diverging: blue – near-white – red.
 const fragment = /* glsl */ `
 uniform sampler2D uData;
+uniform sampler2D uWater;
 uniform int uMode; // 0 none, 1 sequential, 2 diverging
 uniform vec3 uBase;
+uniform vec3 uHigh;
+uniform vec3 uWaterColor;
+uniform vec3 uSunDir;
 uniform float uFade;
 varying vec2 vUv;
+varying vec3 vNormal;
+varying float vHeight; // 0 at sea level, 1 at the highest point
 
 vec3 sequential(float t) {
   vec3 c0 = vec3(0.13, 0.11, 0.33);
@@ -69,21 +83,33 @@ vec3 diverging(float t) {
 }
 
 void main() {
-  vec3 col = uBase;
+  vec3 col = mix(uBase, uHigh, clamp(vHeight, 0.0, 1.0));
   if (uMode > 0) {
     float t = texture2D(uData, vUv).r;
     vec3 c = uMode == 1 ? sequential(t) : diverging(t);
-    col = mix(uBase, c, uFade);
+    col = mix(col, c, uFade);
   }
+  // Soft hillshade: full brightness on flat ground, darker on slopes facing away from the sun.
+  vec3 n = normalize(vNormal);
+  float shade = clamp(0.3 + 0.7 * dot(n, uSunDir) / uSunDir.y, 0.55, 1.15);
+  col *= shade;
+  // Sea, lakes and rivers alike; a linear-filtered mask threshold gives smooth shores.
+  float w = texture2D(uWater, vUv).r;
+  col = mix(col, uWaterColor, smoothstep(0.4, 0.6, w));
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }`;
 
-/** The ground plane: one 128 × 128 texture, recoloured on the GPU by the active overlay's ramp. */
+/**
+ * The ground: a 128 × 128 height mesh with one vertex per cell centre, tinted by height, shaded by slope,
+ * painted with water, and recoloured on the GPU by the active overlay's ramp.
+ */
 export class OverlayLayer {
   readonly mesh: THREE.Mesh;
   private data = new Uint8Array(N * N);
   private texture: THREE.DataTexture;
+  private waterData = new Uint8Array(N * N);
+  private waterTexture: THREE.DataTexture;
   private material: THREE.ShaderMaterial;
   private sortBuf = new Float32Array(N * N);
   current: OverlayDef = OVERLAYS[0];
@@ -94,24 +120,54 @@ export class OverlayLayer {
     this.texture.magFilter = THREE.LinearFilter;
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.needsUpdate = true;
+    this.waterTexture = new THREE.DataTexture(this.waterData, N, N, THREE.RedFormat, THREE.UnsignedByteType);
+    this.waterTexture.magFilter = THREE.LinearFilter;
+    this.waterTexture.minFilter = THREE.LinearFilter;
+    this.waterTexture.needsUpdate = true;
     this.material = new THREE.ShaderMaterial({
       vertexShader: vertex,
       fragmentShader: fragment,
       uniforms: {
         uData: { value: this.texture },
+        uWater: { value: this.waterTexture },
         uMode: { value: 0 },
         uBase: { value: baseColor.clone() },
+        uHigh: { value: baseColor.clone() },
+        uWaterColor: { value: new THREE.Color('#8fb8d8') },
+        uSunDir: { value: new THREE.Vector3(-60, 120, 40).normalize() },
+        uHeightScale: { value: 1 },
         uFade: { value: 1 },
       },
     });
-    const geo = new THREE.PlaneGeometry(N, N);
+    const geo = new THREE.PlaneGeometry(N - 1, N - 1, N - 1, N - 1);
     geo.rotateX(-Math.PI / 2);
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.receiveShadow = false;
   }
 
-  setBaseColor(c: THREE.Color): void {
-    (this.material.uniforms.uBase.value as THREE.Color).copy(c);
+  /** Ground colour at sea level, at the highest point, and the colour of water. */
+  setColors(base: THREE.Color, high: THREE.Color, water: THREE.Color): void {
+    (this.material.uniforms.uBase.value as THREE.Color).copy(base);
+    (this.material.uniforms.uHigh.value as THREE.Color).copy(high);
+    (this.material.uniforms.uWaterColor.value as THREE.Color).copy(water);
+  }
+
+  /** Lift each vertex to its cell's surface height and upload the water mask. */
+  setTerrain(t: TerrainView): void {
+    const pos = this.mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    let top = 0;
+    for (let i = 0; i < N * N; i++) {
+      // PlaneGeometry rows run from −z to +z after the rotation, matching cell rows y = 0 … N−1.
+      const y = Math.max(t.surface[i], 0) * TERRAIN_UNITS_PER_M;
+      pos.setY(i, y);
+      top = Math.max(top, y);
+      this.waterData[i] = t.water[i] ? 255 : 0;
+    }
+    pos.needsUpdate = true;
+    this.mesh.geometry.computeVertexNormals();
+    this.mesh.geometry.computeBoundingSphere();
+    this.material.uniforms.uHeightScale.value = top > 0 ? 1 / top : 0;
+    this.waterTexture.needsUpdate = true;
   }
 
   setOverlay(def: OverlayDef, snap: Snapshot | null): void {

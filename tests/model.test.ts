@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { CELLS, N, idx } from '../src/sim/grid';
-import { defaultParams } from '../src/sim/params';
+import { defaultParams, noWater } from '../src/sim/params';
 import { Simulation } from '../src/sim/simulation';
 
 // Fewer Frank–Wolfe iterations keep the long runs quick; the dynamics are the same.
-const fast = { fwIterations: 4 };
+// The shape checks below are about the model on an open plain, so they run without water.
+const fast = { fwIterations: 4, ...noWater };
 
 describe('slow layer', () => {
   it('is deterministic for a seed', () => {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { MapScene } from '../render/scene';
 import { OVERLAYS, type Legend, type OverlayId } from '../render/overlays';
 import { defaultParams, type ParamName } from '../sim/params';
-import type { Snapshot, Stats } from '../sim/types';
+import type { Snapshot, Stats, TerrainView } from '../sim/types';
 import type { SimClient } from '../simClient';
 import type { Speed } from '../worker/simWorker';
 import { BottomBar } from './BottomBar';
@@ -68,7 +68,8 @@ export function App({ client }: { client: SimClient }) {
       setHistoryVersion(h.version);
       setStats(st);
     };
-    client.connect(Comlink.proxy({ snapshot: onSnapshot, stats: onStats }));
+    const onTerrain = (t: TerrainView) => s.setTerrain(t);
+    client.connect(Comlink.proxy({ terrain: onTerrain, snapshot: onSnapshot, stats: onStats }));
     return () => {
       dark.removeEventListener('change', applyTheme);
       s.dispose();

@@ -2,11 +2,12 @@
 import * as Comlink from 'comlink';
 import { Simulation } from '../sim/simulation';
 import { defaultParams, type ParamName, type Params } from '../sim/params';
-import { SNAPSHOT_FIELDS, type Snapshot, type Stats } from '../sim/types';
+import { SNAPSHOT_FIELDS, type Snapshot, type Stats, type TerrainView } from '../sim/types';
 
 export type Speed = 1 | 4 | 16;
 
 export interface WorkerEvents {
+  terrain(t: TerrainView): void;
   snapshot(s: Snapshot): void;
   stats(s: Stats): void;
 }
@@ -33,6 +34,7 @@ class SimWorker {
 
   connect(events: WorkerEvents): void {
     this.events = events;
+    this.publishTerrain();
     this.publish(true);
   }
 
@@ -73,7 +75,14 @@ class SimWorker {
     this.sim.reset(seed >>> 0);
     this.due = 0;
     this.lastClock = performance.now();
+    this.publishTerrain();
     this.publish(true);
+  }
+
+  private publishTerrain(): void {
+    if (!this.events) return;
+    const t: TerrainView = { surface: this.sim.terrain.surface.slice(), water: this.sim.terrain.water.slice() };
+    this.events.terrain(Comlink.transfer(t, [t.surface.buffer as ArrayBuffer, t.water.buffer as ArrayBuffer]));
   }
 
   private schedule(ms: number): void {

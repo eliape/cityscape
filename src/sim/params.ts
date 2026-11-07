@@ -52,6 +52,15 @@ export interface Params {
   mu: number; // sensitivity to B − R
   seedResidents: number; // people in a new settlement
   seedJobs: number; // jobs in a new settlement
+  // ── Terrain (applied on reset) ──
+  landShare: number; // share of the map above sea level, before lakes and rivers
+  featureSize: number; // wavelength of the largest landforms, m: small = many islands, large = one landmass
+  coastRoughness: number; // gain per noise octave: higher = more ragged coasts and more small islands
+  mainland: number; // tilt towards a random side: 0 = no preferred side, 1 = a continent on one side
+  relief: number; // height of the highest point, m
+  rivers: number; // number of rivers traced from the largest catchments
+  riverWidth: number; // river width at the mouth, m
+  lakeDepth: number; // depressions at least this deep become lakes, m
   // ── Run ──
   substeps: number; // Euler substeps per month
   travelInterval: number; // months between fast-layer solves
@@ -103,14 +112,26 @@ export const defaultParams: Params = {
   seedResidents: 60,
   seedJobs: 25,
 
+  landShare: 0.75,
+  featureSize: 5000,
+  coastRoughness: 0.5,
+  mainland: 0.6,
+  relief: 120,
+  rivers: 2,
+  riverWidth: 300,
+  lakeDepth: 10,
+
   substeps: 2,
   travelInterval: 12,
 };
 
+/** Terrain settings that give a map with no water at all: the flat plain of the original model. */
+export const noWater: Partial<Params> = { landShare: 1, rivers: 0, lakeDepth: 1e9 };
+
 export type ParamName = keyof Params;
 
 export interface ParamMeta {
-  group: 'Travel' | 'Households' | 'Firms' | 'Land market' | 'Nucleation' | 'Run';
+  group: 'Travel' | 'Households' | 'Firms' | 'Land market' | 'Nucleation' | 'Terrain' | 'Run';
   min: number;
   max: number;
   step: number;
@@ -164,6 +185,15 @@ export const paramMeta: Record<ParamName, ParamMeta> = {
   mu: { group: 'Nucleation', min: 0, max: 6, step: 0.1, label: 'μ sensitivity' },
   seedResidents: { group: 'Nucleation', min: 0, max: 500, step: 5, label: 'Seed residents' },
   seedJobs: { group: 'Nucleation', min: 0, max: 500, step: 5, label: 'Seed jobs' },
+
+  landShare: { group: 'Terrain', min: 0.1, max: 1, step: 0.01, label: 'Land share (on reset)' },
+  featureSize: { group: 'Terrain', min: 500, max: 20000, step: 100, label: 'Landform size (m, on reset)' },
+  coastRoughness: { group: 'Terrain', min: 0, max: 0.8, step: 0.01, label: 'Coast roughness (on reset)' },
+  mainland: { group: 'Terrain', min: 0, max: 2, step: 0.05, label: 'Mainland tilt (on reset)' },
+  relief: { group: 'Terrain', min: 0, max: 500, step: 5, label: 'Highest point (m, on reset)' },
+  rivers: { group: 'Terrain', min: 0, max: 8, step: 1, label: 'Rivers (on reset)' },
+  riverWidth: { group: 'Terrain', min: 100, max: 800, step: 10, label: 'River width at mouth (m, on reset)' },
+  lakeDepth: { group: 'Terrain', min: 1, max: 100, step: 1, label: 'Min. lake depth (m, on reset)' },
 
   substeps: { group: 'Run', min: 1, max: 8, step: 1, label: 'Euler substeps' },
   travelInterval: { group: 'Run', min: 1, max: 60, step: 1, label: 'Months between travel solves' },
