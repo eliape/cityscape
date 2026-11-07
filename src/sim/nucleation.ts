@@ -1,13 +1,13 @@
-import { CELLS } from './grid';
+import { CELL_KM2, CELL_M2, CELLS } from './grid';
 import type { Fields } from './fields';
 import type { Params } from './params';
 import type { Rng } from './rng';
 
-/** Below this many people a cell counts as empty and can nucleate. */
-export const EMPTY_THRESHOLD = 1;
+/** Below this many people per cell (1 per hectare) a cell counts as empty and can nucleate. */
+export const EMPTY_THRESHOLD = CELL_M2 / 10_000;
 
 /**
- * Poisson settlement seeding: each empty cell seeds with rate ν(x) = ν₀ exp(μ (B(x) − R(x))) per month.
+ * Poisson settlement seeding: empty land seeds at rate ν(x) = ν₀ exp(μ (B(x) − R(x))) per km² per month.
  * Uses the household bid rent as B. Returns the number of new settlements.
  */
 export function nucleate(f: Fields, p: Params, bidH: Float32Array, rng: Rng, dt = 1): number {
@@ -15,7 +15,7 @@ export function nucleate(f: Fields, p: Params, bidH: Float32Array, rng: Rng, dt 
   let seeded = 0;
   for (let i = 0; i < CELLS; i++) {
     if (f.rho[i] + f.jobs[i] >= EMPTY_THRESHOLD) continue;
-    const rate = p.nu0 * Math.exp(Math.min(p.mu * (bidH[i] - f.rent[i]), 30));
+    const rate = p.nu0 * CELL_KM2 * Math.exp(Math.min(p.mu * (bidH[i] - f.rent[i]), 30));
     const prob = 1 - Math.exp(-rate * dt);
     if (rng() < prob) {
       f.rho[i] += p.seedResidents;

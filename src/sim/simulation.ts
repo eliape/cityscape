@@ -1,12 +1,20 @@
-import { CELLS, N, cellsToZones, idx, zonesToCells, ZONES } from './grid';
+import { CELL_KM2, CELL_M, CELLS, N, cellsToZones, idx, zonesToCells, ZONES } from './grid';
 import { createFields, gaussianBlur, type Fields } from './fields';
-import { accessibility, bidRents, createScratch, slowSubstep, type LandUseScratch } from './landuse';
+import { accessibility, bidRents, createScratch, floorDemand, slowSubstep, type LandUseScratch } from './landuse';
 import { buildNetwork, type Network } from './network';
 import { nucleate } from './nucleation';
 import { defaultParams, paramMeta, type ParamName, type Params } from './params';
 import { gaussian, mulberry32, type Rng } from './rng';
 import { solveTravel, type TravelResult } from './travel';
 import type { Snapshot, Stats } from './types';
+
+/** Correlation length of the amenity noise, m. */
+const AMENITY_SCALE_M = 600;
+/** Seed village: Gaussian radius (m), peak densities per km², and the spread of its offset from the centre (m). */
+const VILLAGE_RADIUS_M = 250;
+const VILLAGE_RESIDENTS_KM2 = 25_000;
+const VILLAGE_JOBS_KM2 = 16_000;
+const VILLAGE_OFFSET_M = 800;
 
 /**
  * The whole model: owns all state and advances it one month at a time.
@@ -49,23 +57,25 @@ export class Simulation {
     // Amenity: smooth seeded noise so the city is not perfectly symmetric.
     const noise = new Float32Array(CELLS);
     for (let i = 0; i < CELLS; i++) noise[i] = gaussian(this.rng);
-    gaussianBlur(noise, 6, f.amenity);
+    gaussianBlur(noise, AMENITY_SCALE_M / CELL_M, f.amenity);
     let sd = 0;
     for (let i = 0; i < CELLS; i++) sd += f.amenity[i] * f.amenity[i];
     sd = Math.sqrt(sd / CELLS) || 1;
     for (let i = 0; i < CELLS; i++) f.amenity[i] *= p.amenityNoise / sd;
 
     // Seed village near the centre.
-    const cx = N / 2 + (this.rng() - 0.5) * 8;
-    const cy = N / 2 + (this.rng() - 0.5) * 8;
+    const off = VILLAGE_OFFSET_M / CELL_M;
+    const cx = N / 2 + (this.rng() - 0.5) * off;
+    const cy = N / 2 + (this.rng() - 0.5) * off;
+    const rad = VILLAGE_RADIUS_M / CELL_M;
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
         const i = idx(x, y);
-        const r2 = ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) / (2.5 * 2.5);
+        const r2 = ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) / (rad * rad);
         const w = r2 < 9 ? Math.exp(-r2) : 0;
-        f.rho[i] = 250 * w;
-        f.jobs[i] = 160 * w;
-        f.floor[i] = Math.max(p.floorMin, f.rho[i] / p.qH + f.jobs[i] / p.qF);
+        f.rho[i] = VILLAGE_RESIDENTS_KM2 * CELL_KM2 * w;
+        f.jobs[i] = VILLAGE_JOBS_KM2 * CELL_KM2 * w;
+        f.floor[i] = Math.max(p.floorMin, floorDemand(f.rho[i], f.jobs[i], p));
         f.rent[i] = p.rentFloor;
       }
     }
@@ -167,7 +177,7 @@ export class Simulation {
       mix[i] = tot > 1e-6 ? jobs[i] / tot : 0.5;
       pressure[i] = Math.max(s.bidH[i], s.bidF[i]) - rent[i];
       // Undeveloped, empty land is neither crowded nor under-used: show it as balanced.
-      crowding[i] = tot < 1 && floor[i] <= p.floorMin * 1.01 ? 1 : (rho[i] / p.qH + jobs[i] / p.qF) / floor[i];
+      crowding[i] = tot < 1 && floor[i] <= p.floorMin * 1.01 ? 1 : floorDemand(rho[i], jobs[i], p) / floor[i];
     }
     return {
       month: this.month,

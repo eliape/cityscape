@@ -1,7 +1,10 @@
 /** Grid geometry: 128 × 128 cells of 100 m, grouped into 16 × 16 travel zones of 8 × 8 cells. */
 export const N = 128;
 export const CELLS = N * N;
-export const CELL_KM = 0.1;
+export const CELL_M = 100;
+export const CELL_KM = CELL_M / 1000;
+export const CELL_M2 = CELL_M * CELL_M;
+export const CELL_KM2 = CELL_KM * CELL_KM;
 
 export const ZONE_CELLS = 8;
 export const NZ = N / ZONE_CELLS; // 16
