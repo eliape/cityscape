@@ -1,9 +1,10 @@
 /**
- * Model parameters. Units:
+ * Model parameters, all in physical units so they do not depend on the grid's cell size.
  *  - time: one slow step = one month; travel costs in minutes
- *  - rho, jobs: persons per 100 m cell
- *  - floor space S: multiples of one cell's ground area (S = 1 is FAR 1, 10,000 m²)
+ *  - lengths in metres, areas in m², rates per km²
+ *  - floor space S: floor area ratio (FAR) of each cell
  *  - rent R and bid rents B: a dimensionless rent index (≈ 1 for a small town centre)
+ * Internally ρ and J are stored as persons per cell; see grid.ts for the cell size.
  */
 export interface Params {
   // ── Fast layer: travel ──
@@ -23,19 +24,19 @@ export interface Params {
   amenityNoise: number; // std. dev. of seeded amenity noise
   uBar: number; // utility outside the city
   lambdaH: number; // relocation speed of households, 1/month per unit B−R
-  diffH: number; // household diffusion, cells²/month
-  qH: number; // residents per unit floor space
+  diffH: number; // household diffusion, m²/month
+  floorPerResident: number; // m² of floor space per resident
   // ── Slow layer: firms ──
   agglomA: number; // agglomeration strength a
   agglomSigma: number; // agglomeration exponent σ
-  agglomRange: number; // agglomeration range ℓ, cells
+  agglomRange: number; // agglomeration range ℓ, m (density measured in jobs per hectare)
   thetaF: number; // weight of ln A_f in firm bid rent
   wBar: number; // outside wage / reservation level
   employment: number; // jobs per resident at labour-market balance
   labourWeight: number; // θ_L: how strongly firm bids react to labour shortage
   lambdaF: number;
-  diffF: number;
-  qF: number; // jobs per unit floor space
+  diffF: number; // firm diffusion, m²/month
+  floorPerJob: number; // m² of floor space per job
   // ── Land market ──
   kappa: number; // rent adjustment speed, 1/month
   gamma: number; // construction speed, 1/month
@@ -47,10 +48,10 @@ export interface Params {
   floorMin: number; // floor space of undeveloped land
   maxRate: number; // cap on relative change per month (numerical guard)
   // ── Nucleation ──
-  nu0: number; // base settlement rate per empty cell per month
+  nu0: number; // base settlement rate per km² of empty land per month
   mu: number; // sensitivity to B − R
-  seedResidents: number;
-  seedJobs: number;
+  seedResidents: number; // people in a new settlement
+  seedJobs: number; // jobs in a new settlement
   // ── Run ──
   substeps: number; // Euler substeps per month
   travelInterval: number; // months between fast-layer solves
@@ -73,19 +74,19 @@ export const defaultParams: Params = {
   amenityNoise: 0.15,
   uBar: -1.8,
   lambdaH: 0.08,
-  diffH: 0.06,
-  qH: 180,
+  diffH: 600,
+  floorPerResident: 55.5,
 
   agglomA: 0.1,
   agglomSigma: 0.35,
-  agglomRange: 4,
+  agglomRange: 400,
   thetaF: 0.4,
   wBar: -1.0,
   employment: 0.5,
   labourWeight: 1,
   lambdaF: 0.08,
-  diffF: 0.04,
-  qF: 320,
+  diffF: 400,
+  floorPerJob: 31.25,
 
   kappa: 0.02,
   gamma: 0.03,
@@ -97,7 +98,7 @@ export const defaultParams: Params = {
   floorMin: 0.01,
   maxRate: 0.1,
 
-  nu0: 2e-6,
+  nu0: 2e-4,
   mu: 2,
   seedResidents: 60,
   seedJobs: 25,
@@ -135,19 +136,19 @@ export const paramMeta: Record<ParamName, ParamMeta> = {
   amenityNoise: { group: 'Households', min: 0, max: 1, step: 0.01, label: 'Amenity noise (on reset)' },
   uBar: { group: 'Households', min: -5, max: 5, step: 0.05, label: 'ū outside utility' },
   lambdaH: { group: 'Households', min: 0, max: 0.5, step: 0.005, label: 'λ_h relocation speed' },
-  diffH: { group: 'Households', min: 0, max: 0.24, step: 0.005, label: 'D_h diffusion' },
-  qH: { group: 'Households', min: 20, max: 600, step: 5, label: 'q_h residents / floor' },
+  diffH: { group: 'Households', min: 0, max: 2400, step: 10, label: 'D_h diffusion (m²/month)' },
+  floorPerResident: { group: 'Households', min: 15, max: 200, step: 0.5, label: 'Floor per resident (m²)' },
 
   agglomA: { group: 'Firms', min: 0, max: 1, step: 0.01, label: 'a agglomeration' },
   agglomSigma: { group: 'Firms', min: 0, max: 1, step: 0.01, label: 'σ agglomeration exp.' },
-  agglomRange: { group: 'Firms', min: 0, max: 16, step: 0.5, label: 'ℓ range (cells)' },
+  agglomRange: { group: 'Firms', min: 0, max: 1600, step: 25, label: 'ℓ agglomeration range (m)' },
   thetaF: { group: 'Firms', min: 0, max: 2, step: 0.01, label: 'θ_f access weight' },
   wBar: { group: 'Firms', min: -5, max: 5, step: 0.05, label: 'w̄ outside wage' },
   employment: { group: 'Firms', min: 0.1, max: 1, step: 0.01, label: 'Jobs per resident' },
   labourWeight: { group: 'Firms', min: 0, max: 5, step: 0.05, label: 'θ_L labour-market weight' },
   lambdaF: { group: 'Firms', min: 0, max: 0.5, step: 0.005, label: 'λ_f relocation speed' },
-  diffF: { group: 'Firms', min: 0, max: 0.24, step: 0.005, label: 'D_f diffusion' },
-  qF: { group: 'Firms', min: 20, max: 1000, step: 5, label: 'q_f jobs / floor' },
+  diffF: { group: 'Firms', min: 0, max: 2400, step: 10, label: 'D_f diffusion (m²/month)' },
+  floorPerJob: { group: 'Firms', min: 10, max: 200, step: 0.5, label: 'Floor per job (m²)' },
 
   kappa: { group: 'Land market', min: 0, max: 0.3, step: 0.005, label: 'κ rent speed' },
   gamma: { group: 'Land market', min: 0, max: 0.3, step: 0.005, label: 'γ construction speed' },
@@ -159,7 +160,7 @@ export const paramMeta: Record<ParamName, ParamMeta> = {
   floorMin: { group: 'Land market', min: 0.001, max: 0.2, step: 0.001, label: 'Undeveloped floor space' },
   maxRate: { group: 'Land market', min: 0.05, max: 1, step: 0.05, label: 'Max relative rate' },
 
-  nu0: { group: 'Nucleation', min: 0, max: 1e-4, step: 1e-7, label: 'ν₀ base rate' },
+  nu0: { group: 'Nucleation', min: 0, max: 1e-2, step: 1e-5, label: 'ν₀ base rate (per km² per month)' },
   mu: { group: 'Nucleation', min: 0, max: 6, step: 0.1, label: 'μ sensitivity' },
   seedResidents: { group: 'Nucleation', min: 0, max: 500, step: 5, label: 'Seed residents' },
   seedJobs: { group: 'Nucleation', min: 0, max: 500, step: 5, label: 'Seed jobs' },

@@ -16,7 +16,7 @@ export interface OverlayDef {
 }
 
 export const OVERLAYS: OverlayDef[] = [
-  { id: 'none', label: 'Buildings', hint: 'Height ∝ √floor space; warm = homes, cool = jobs', kind: 'none' },
+  { id: 'none', label: 'Buildings', hint: 'One building per 50 m lot, floors from floor space; warm = homes, cool = jobs', kind: 'none' },
   { id: 'access', label: 'Accessibility', hint: 'ln A_w: jobs within reach', field: 'lnA', kind: 'sequential', digits: 1 },
   { id: 'rent', label: 'Rent', hint: 'Rent per unit of floor space', field: 'rent', kind: 'sequential', digits: 2 },
   { id: 'pressure', label: 'Growth pressure', hint: 'B − R: red = undervalued land', field: 'pressure', kind: 'diverging', center: 0, digits: 2 },

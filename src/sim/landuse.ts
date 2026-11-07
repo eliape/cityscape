@@ -1,4 +1,4 @@
-import { CELLS, cellsToZones, zonesToCells, ZONES } from './grid';
+import { CELL_M, CELL_M2, CELLS, cellsToZones, zonesToCells, ZONES } from './grid';
 import { gaussianBlur, laplacian, type Fields } from './fields';
 import type { Params } from './params';
 
@@ -86,14 +86,23 @@ export function labourTerm(f: Fields, p: Params): number {
  * with the scale normalisation and labour-market terms above.
  */
 export function bidRents(f: Fields, p: Params, lnAw: Float32Array, lnAf: Float32Array, s: LandUseScratch): void {
-  gaussianBlur(f.jobs, p.agglomRange, s.blur, s.blurTmp);
+  // Agglomeration acts on job density (jobs per hectare) smoothed over a range ℓ in metres.
+  gaussianBlur(f.jobs, p.agglomRange / CELL_M, s.blur, s.blurTmp);
   const [scaleW, scaleF] = scaleTerms(f, p);
   const labour = labourTerm(f, p);
   for (let i = 0; i < CELLS; i++) {
     s.bidH[i] = p.thetaH * (lnAw[i] - scaleW) + p.amenity + f.amenity[i] - p.uBar;
-    s.bidF[i] = p.agglomA * Math.pow(Math.max(s.blur[i], 0), p.agglomSigma) + p.thetaF * (lnAf[i] - scaleF) - p.wBar + labour;
+    s.bidF[i] = p.agglomA * Math.pow(Math.max(s.blur[i] / CELL_HA, 0), p.agglomSigma) + p.thetaF * (lnAf[i] - scaleF) - p.wBar + labour;
   }
 }
+
+/** Floor space a cell's residents and jobs need, as FAR. */
+export function floorDemand(rho: number, jobs: number, p: Params): number {
+  return (rho * p.floorPerResident + jobs * p.floorPerJob) / CELL_M2;
+}
+
+/** Hectares per cell, to express densities per hectare independent of the cell size. */
+const CELL_HA = CELL_M2 / 10_000;
 
 /** Supply curve S*(R) = S_max R^ε / (R^ε + R₀^ε). */
 export function targetFloor(rent: number, p: Params): number {
@@ -115,20 +124,23 @@ const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi 
 export function slowSubstep(f: Fields, p: Params, s: LandUseScratch, dt: number): void {
   const { rho, jobs, rent, floor } = f;
   const m = p.maxRate;
+  // Diffusion coefficients are in m²/month; the Laplacian is in cell units.
+  const dH = p.diffH / CELL_M2;
+  const dF = p.diffF / CELL_M2;
 
   laplacian(rho, s.lap);
   for (let i = 0; i < CELLS; i++) {
     const g = clamp(p.lambdaH * (s.bidH[i] - rent[i]), -m, m);
-    rho[i] = Math.max(0, rho[i] + dt * (g * rho[i] + p.diffH * s.lap[i]));
+    rho[i] = Math.max(0, rho[i] + dt * (g * rho[i] + dH * s.lap[i]));
   }
   laplacian(jobs, s.lap);
   for (let i = 0; i < CELLS; i++) {
     const g = clamp(p.lambdaF * (s.bidF[i] - rent[i]), -m, m);
-    jobs[i] = Math.max(0, jobs[i] + dt * (g * jobs[i] + p.diffF * s.lap[i]));
+    jobs[i] = Math.max(0, jobs[i] + dt * (g * jobs[i] + dF * s.lap[i]));
   }
   for (let i = 0; i < CELLS; i++) {
     const S = floor[i];
-    const demand = rho[i] / p.qH + jobs[i] / p.qF;
+    const demand = floorDemand(rho[i], jobs[i], p);
     const g = clamp((p.kappa * (demand - S)) / S, -m, m);
     rent[i] = Math.max(p.rentFloor, rent[i] * (1 + dt * g));
     const target = targetFloor(rent[i], p);

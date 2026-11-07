@@ -1,45 +1,48 @@
 import * as THREE from 'three';
-import { CELLS, N } from '../sim/grid';
+import { CELL_M, N } from '../sim/grid';
 import type { Snapshot } from '../sim/types';
+import { LN, LOT_M, LOTS, LotModel } from './lots';
 
-// Job share ramp: warm residential → pale mixed → cool commercial.
-const RESIDENTIAL = new THREE.Color('#e48a3c');
-const MIXED = new THREE.Color('#ece6da');
-const COMMERCIAL = new THREE.Color('#3f78c2');
-/** World units (cells) of height per √(floor space). */
-const HEIGHT_SCALE = 2.4;
-/** Floor space below this is open land and draws no block. */
-const MIN_FLOOR = 0.03;
+/** Storey height, m, and the vertical exaggeration that keeps a 12.8 km map readable from above. */
+const FLOOR_M = 3.5;
+const VERTICAL_EXAGGERATION = 8;
+/** World units are cells; a lot is LOT_M / CELL_M of a cell. */
+const LOT_UNITS = LOT_M / CELL_M;
+const UNITS_PER_FLOOR = (FLOOR_M / CELL_M) * VERTICAL_EXAGGERATION;
 
-/** One extruded block per cell, all drawn in a single InstancedMesh call. */
+// Two families of shades: warm for homes, cool for jobs. Each building picks a shade from its family.
+const HOME_LIGHT = new THREE.Color('#f2c38f');
+const HOME_DARK = new THREE.Color('#d9772e');
+const WORK_LIGHT = new THREE.Color('#9dbbe3');
+const WORK_DARK = new THREE.Color('#3a6fb8');
+
+/**
+ * Buildings as their own graphical layer: one block per developed 50 m lot, drawn in a single
+ * InstancedMesh. Lot development lives in LotModel; this class only turns it into instances.
+ */
 export class BuildingLayer {
   readonly mesh: THREE.InstancedMesh;
+  readonly lots = new LotModel();
   private material: THREE.MeshLambertMaterial;
   private color = new THREE.Color();
   private flatten = false;
   private faded = false;
-  private last: Snapshot | null = null;
 
   constructor() {
-    const geo = new THREE.BoxGeometry(0.86, 1, 0.86);
+    const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.translate(0, 0.5, 0);
     this.material = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
-    this.mesh = new THREE.InstancedMesh(geo, this.material, CELLS);
+    this.mesh = new THREE.InstancedMesh(geo, this.material, LOTS);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CELLS * 3), 3);
+    this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(LOTS * 3), 3);
     this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
     this.mesh.frustumCulled = false;
-    const m = this.mesh.instanceMatrix.array as Float32Array;
-    for (let i = 0; i < CELLS; i++) {
-      const o = i * 16;
-      m.fill(0, o, o + 16);
-      m[o + 15] = 1;
-    }
+    this.mesh.count = 0;
   }
 
   setFlatten(on: boolean): void {
     this.flatten = on;
-    if (this.last) this.update(this.last);
+    this.rebuild();
   }
 
   /** An active overlay fades buildings to 25 % opacity. */
@@ -55,33 +58,44 @@ export class BuildingLayer {
   }
 
   update(snap: Snapshot): void {
-    this.last = snap;
+    this.lots.update(snap.month, snap.floor, snap.mix);
+    this.rebuild();
+  }
+
+  /** Write one instance per standing building. */
+  private rebuild(): void {
+    const L = this.lots;
     const m = this.mesh.instanceMatrix.array as Float32Array;
     const c = this.mesh.instanceColor!.array as Float32Array;
-    const { floor, mix } = snap;
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        const i = y * N + x;
-        const o = i * 16;
-        const S = floor[i];
-        const built = S > MIN_FLOOR;
-        const h = built ? (this.flatten ? 0.02 : Math.max(0.05, HEIGHT_SCALE * Math.sqrt(S))) : 0;
-        const w = built ? 1 : 0;
+    let n = 0;
+    for (let ly = 0; ly < LN; ly++) {
+      for (let lx = 0; lx < LN; lx++) {
+        const i = ly * LN + lx;
+        const floors = L.floors[i];
+        if (floors === 0) continue;
+        const o = n * 16;
+        const w = L.width[i] * LOT_UNITS;
+        const d = L.depth[i] * LOT_UNITS;
+        const h = this.flatten ? 0.03 : floors * UNITS_PER_FLOOR;
         // Column-major scale + translation.
+        m.fill(0, o, o + 16);
         m[o] = w;
         m[o + 5] = h;
-        m[o + 10] = w;
-        m[o + 12] = x - N / 2 + 0.5;
+        m[o + 10] = d;
+        m[o + 12] = (lx + 0.5 + L.offsetX[i]) * LOT_UNITS - N / 2;
         m[o + 13] = 0.01;
-        m[o + 14] = y - N / 2 + 0.5;
-        const t = mix[i];
-        if (t < 0.5) this.color.copy(RESIDENTIAL).lerp(MIXED, t * 2);
-        else this.color.copy(MIXED).lerp(COMMERCIAL, t * 2 - 1);
-        c[i * 3] = this.color.r;
-        c[i * 3 + 1] = this.color.g;
-        c[i * 3 + 2] = this.color.b;
+        m[o + 14] = (ly + 0.5 + L.offsetY[i]) * LOT_UNITS - N / 2;
+        m[o + 15] = 1;
+        const t = L.shade[i];
+        if (L.commercial[i]) this.color.copy(WORK_LIGHT).lerp(WORK_DARK, 0.35 + 0.65 * t);
+        else this.color.copy(HOME_LIGHT).lerp(HOME_DARK, 0.35 + 0.65 * t);
+        c[n * 3] = this.color.r;
+        c[n * 3 + 1] = this.color.g;
+        c[n * 3 + 2] = this.color.b;
+        n++;
       }
     }
+    this.mesh.count = n;
     this.mesh.instanceMatrix.needsUpdate = true;
     this.mesh.instanceColor!.needsUpdate = true;
   }
